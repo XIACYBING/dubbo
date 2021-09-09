@@ -165,8 +165,8 @@ public class ReferenceAnnotationBeanPostProcessorTest {
         Assert.assertEquals(4, referenceBeans.size());
 
         ReferenceBean<?> referenceBean = referenceBeans.iterator().next();
-
-        Assert.assertNotNull(ReferenceConfigCache.getCache().get(referenceBean));
+        Object o = ReferenceConfigCache.getCache().get(referenceBean);
+        Assert.assertNotNull(o);
 
     }
 

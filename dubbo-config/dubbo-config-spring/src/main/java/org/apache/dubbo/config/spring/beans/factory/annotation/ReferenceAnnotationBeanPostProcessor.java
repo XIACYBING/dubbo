@@ -92,6 +92,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
      * {@link DubboReference @DubboReference} has been supported since 2.7.7
      */
     public ReferenceAnnotationBeanPostProcessor() {
+        // 只解析这三种注解，被这三种注解标注的属性，会被ProxyFactory生成的代理类注入
         super(DubboReference.class, Reference.class, com.alibaba.dubbo.config.annotation.Reference.class);
     }
 
