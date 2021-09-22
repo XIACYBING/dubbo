@@ -61,6 +61,8 @@ public class ZookeeperRegistry extends FailbackRegistry {
         if (url.isAnyHost()) {
             throw new IllegalStateException("registry address == null");
         }
+
+        // 获取当前group，默认值为dubbo
         String group = url.getParameter(Constants.GROUP_KEY, DEFAULT_ROOT);
         if (!group.startsWith(Constants.PATH_SEPARATOR)) {
             group = Constants.PATH_SEPARATOR + group;
@@ -129,20 +131,32 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     protected void doSubscribe(final URL url, final NotifyListener listener) {
         try {
+            // 如果订阅的是*，即所有的接口，进入该分支，一般是admin会这么订阅
             if (Constants.ANY_VALUE.equals(url.getServiceInterface())) {
+
+                // 返回当前注册中心的root，即group，group是针对服务的分组，默认为dubbo
                 String root = toRootPath();
+
+                // 获取到当前zk所有的变更监听器，用于监听对应服务提供者的数据变更
                 ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
+
+                // 如果监听器集合为null，则需要新建一个空集合
                 if (listeners == null) {
                     zkListeners.putIfAbsent(url, new ConcurrentHashMap<NotifyListener, ChildListener>());
                     listeners = zkListeners.get(url);
                 }
+
+                // 获取当前url监听器的子级监听器
                 ChildListener zkListener = listeners.get(listener);
+
+                // 如果子级监听器为空，则需要创建
                 if (zkListener == null) {
                     listeners.putIfAbsent(listener, new ChildListener() {
                         @Override
                         public void childChanged(String parentPath, List<String> currentChilds) {
                             for (String child : currentChilds) {
                                 child = URL.decode(child);
+                                // todo wyb 确认具体逻辑
                                 if (!anyServices.contains(child)) {
                                     anyServices.add(child);
                                     subscribe(url.setPath(child).addParameters(Constants.INTERFACE_KEY, child,
@@ -153,8 +167,13 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     });
                     zkListener = listeners.get(listener);
                 }
+
+                // 在zk上对当前消费者创建一个持续节点，主路径为group
                 zkClient.create(root, false);
+
+                // 添加对应子节点的监听器，即对应的service监听器 todo wyb services是啥？不同provider的url集合？
                 List<String> services = zkClient.addChildListener(root, zkListener);
+                // todo wyb 确认具体逻辑
                 if (services != null && !services.isEmpty()) {
                     for (String service : services) {
                         service = URL.decode(service);
@@ -164,7 +183,10 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     }
                 }
             } else {
+                // 针对具体接口的订阅逻辑
                 List<URL> urls = new ArrayList<URL>();
+
+                // 获取所有的category路径
                 for (String path : toCategoriesPath(url)) {
                     ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
                     if (listeners == null) {
@@ -243,6 +265,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     }
 
     private String toServicePath(URL url) {
+        // 如果当前是针对具体接口的订阅，则获取对应接口名称，拼接rootDir返回，否则则直接返回root
         String name = url.getServiceInterface();
         if (Constants.ANY_VALUE.equals(name)) {
             return toRootPath();
@@ -252,13 +275,16 @@ public class ZookeeperRegistry extends FailbackRegistry {
 
     private String[] toCategoriesPath(URL url) {
         String[] categories;
+        // 如果是*，则构建providers、consumers、routers和configurators的数组集合
         if (Constants.ANY_VALUE.equals(url.getParameter(Constants.CATEGORY_KEY))) {
             categories = new String[]{Constants.PROVIDERS_CATEGORY, Constants.CONSUMERS_CATEGORY,
                     Constants.ROUTERS_CATEGORY, Constants.CONFIGURATORS_CATEGORY};
         } else {
+            // 否则获取url上配置的category，默认为providers，消费者一般会需要providers、routers和configurators三种
             categories = url.getParameter(Constants.CATEGORY_KEY, new String[]{Constants.DEFAULT_CATEGORY});
         }
         String[] paths = new String[categories.length];
+        // 根据servicePath拼接category，最后一般是group/interface/category
         for (int i = 0; i < categories.length; i++) {
             paths[i] = toServicePath(url) + Constants.PATH_SEPARATOR + categories[i];
         }
