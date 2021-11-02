@@ -293,24 +293,38 @@ public class ExtensionLoader<T> {
     public T getExtension(String name) {
         if (name == null || name.length() == 0)
             throw new IllegalArgumentException("Extension name == null");
+
+        // 如果extension的名称为true，则直接取默认的extension
         if ("true".equals(name)) {
             return getDefaultExtension();
         }
+
+        // 否则，先判断是否有已缓存的对应extension实例holder
         Holder<Object> holder = cachedInstances.get(name);
         if (holder == null) {
+
+            // 如果没有的话，创建一个holder，并放置进去
             cachedInstances.putIfAbsent(name, new Holder<Object>());
             holder = cachedInstances.get(name);
         }
         Object instance = holder.get();
+
+        // 判断holder中的extension实例是否为空，如果为空，则使用holder加锁实例化一个extension
         if (instance == null) {
             synchronized (holder) {
                 instance = holder.get();
+
+                // double check
                 if (instance == null) {
+
+                    // 实例化extension，并放置到holder中
                     instance = createExtension(name);
                     holder.set(instance);
                 }
             }
         }
+
+        // 返回创建完成的extension
         return (T) instance;
     }
 
@@ -484,20 +498,35 @@ public class ExtensionLoader<T> {
 
     @SuppressWarnings("unchecked")
     private T createExtension(String name) {
+
+        // 从extension类实例缓存中获取对应的类实例
         Class<?> clazz = getExtensionClasses().get(name);
+
+        // 如果为空则根据extensionName抛出异常
         if (clazz == null) {
             throw findException(name);
         }
         try {
+
+            // 从extension实例缓存中，根据类实例获取对象实例
             T instance = (T) EXTENSION_INSTANCES.get(clazz);
+
+            // 如果对象实例为空，则根据类实例新建一个对象实例
             if (instance == null) {
                 EXTENSION_INSTANCES.putIfAbsent(clazz, clazz.newInstance());
                 instance = (T) EXTENSION_INSTANCES.get(clazz);
             }
+
+            // 在必要情况下注入实例中需要的其他extension（set方法）
             injectExtension(instance);
+
+            // 获取到当前所有的wrapperExtension类实例
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
             if (wrapperClasses != null && !wrapperClasses.isEmpty()) {
                 for (Class<?> wrapperClass : wrapperClasses) {
+
+                    // 循环wrapperExtension类实例，如果是构造器入参类型为当前extension类型，则实例化一个wrapper，并返回它
+                    // 此处主要做的是AOP相关动作，wrapperExtension中会包装一些通用逻辑，类似Spring中的切面
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
                 }
             }
@@ -511,19 +540,29 @@ public class ExtensionLoader<T> {
     private T injectExtension(T instance) {
         try {
             if (objectFactory != null) {
+
+                // 获取当前extension类实例所有的方法
                 for (Method method : instance.getClass().getMethods()) {
+
+                    // 如果方法以set开头、参数只有一个且修饰符为public，则考虑注入某些extension对象实例
                     if (method.getName().startsWith("set")
                             && method.getParameterTypes().length == 1
                             && Modifier.isPublic(method.getModifiers())) {
                         /**
                          * Check {@link DisableInject} to see if we need auto injection for this property
+                         * 如果方法中有DisableInject注解，则无需处理
                          */
                         if (method.getAnnotation(DisableInject.class) != null) {
                             continue;
                         }
+
+                        // 获取方法入参类型
                         Class<?> pt = method.getParameterTypes()[0];
                         try {
+                            // 如果方法名称大于3个，则获取set后的字符，并将第一个字符转为小写
                             String property = method.getName().length() > 3 ? method.getName().substring(3, 4).toLowerCase() + method.getName().substring(4) : "";
+
+                            // 获取对应的extension对象实例，并将对象设置到wrapperExtension中
                             Object object = objectFactory.getExtension(pt, property);
                             if (object != null) {
                                 method.invoke(instance, object);
