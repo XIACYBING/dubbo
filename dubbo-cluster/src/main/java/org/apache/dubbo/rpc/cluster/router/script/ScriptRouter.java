@@ -55,6 +55,8 @@ import static org.apache.dubbo.rpc.cluster.Constants.TYPE_KEY;
 
 /**
  * ScriptRouter
+ * 脚本路由，可以在url上自定义脚本函数，通过脚本函数进行路由过滤
+ * @see <a href="https://blog.csdn.net/weixin_34405925/article/details/91979970"/>
  */
 public class ScriptRouter extends AbstractRouter {
 
@@ -87,9 +89,14 @@ public class ScriptRouter extends AbstractRouter {
         this.url = url;
         this.priority = url.getParameter(PRIORITY_KEY, SCRIPT_ROUTER_DEFAULT_PRIORITY);
 
+        // 获取脚本引擎
         engine = getEngine(url);
+
+        // 获取脚本字符串
         rule = getRule(url);
         try {
+
+            // 使用脚本引擎编译脚本字符串
             Compilable compilable = (Compilable) engine;
             function = compilable.compile(rule);
         } catch (ScriptException e) {
@@ -102,6 +109,8 @@ public class ScriptRouter extends AbstractRouter {
      * get rule from url parameters.
      */
     private String getRule(URL url) {
+
+        // 获取脚本函数字符串
         String vRule = url.getParameterAndDecoded(RULE_KEY);
         if (StringUtils.isEmpty(vRule)) {
             throw new IllegalStateException("route rule can not be empty.");
@@ -113,8 +122,11 @@ public class ScriptRouter extends AbstractRouter {
      * create ScriptEngine instance by type from url parameters, then cache it
      */
     private ScriptEngine getEngine(URL url) {
+
+        // 通过type的key，获取脚本的语言类型，是用来初始化脚本引擎的（如果没有type，则获取默认的脚本类型（javascript））
         String type = url.getParameter(TYPE_KEY, DEFAULT_SCRIPT_TYPE_KEY);
 
+        // 去缓存中获取脚本引擎，如果没有则实例化一个脚本引擎，如果无法实例化则抛出异常
         return ENGINES.computeIfAbsent(type, t -> {
             ScriptEngine scriptEngine = new ScriptEngineManager().getEngineByName(type);
             if (scriptEngine == null) {
@@ -129,11 +141,14 @@ public class ScriptRouter extends AbstractRouter {
         if (engine == null || function == null) {
             return invokers;
         }
+
+        // 创建脚本引擎的参数绑定器
         Bindings bindings = createBindings(invokers, invocation);
         return getRoutedInvokers(AccessController.doPrivileged(new PrivilegedAction() {
             @Override
             public Object run() {
                 try {
+                    // 执行脚本
                     return function.eval(bindings);
                 } catch (ScriptException e) {
                     logger.error("route error, rule has been ignored. rule: " + rule + ", method:" +
@@ -147,6 +162,7 @@ public class ScriptRouter extends AbstractRouter {
 
     /**
      * get routed invokers from result of script rule evaluation
+     * 转换脚本执行结果并返回
      */
     @SuppressWarnings("unchecked")
     protected <T> List<Invoker<T>> getRoutedInvokers(Object obj) {
@@ -164,6 +180,9 @@ public class ScriptRouter extends AbstractRouter {
      */
     private <T> Bindings createBindings(List<Invoker<T>> invokers, Invocation invocation) {
         Bindings bindings = engine.createBindings();
+
+
+        // 绑定3个参数，也是在rule脚本函数字串最后传递的参数名称。
         // create a new List of invokers
         bindings.put("invokers", new ArrayList<>(invokers));
         bindings.put("invocation", invocation);

@@ -56,6 +56,8 @@ import static org.apache.dubbo.rpc.cluster.Constants.RUNTIME_KEY;
  * For 2.7.x and later, please refer to {@link org.apache.dubbo.rpc.cluster.router.condition.config.ServiceRouter}
  * and {@link org.apache.dubbo.rpc.cluster.router.condition.config.AppRouter}
  * refer to https://dubbo.apache.org/zh/docs/v2.7/user/examples/routing-rule/ .
+ * @see <a href="https://dubbo.apache.org/zh/docs/advanced/routing-rule"/>
+ * @see <a href="https://my.oschina.net/u/146130/blog/1592235"/>
  */
 public class ConditionRouter extends AbstractRouter {
     public static final String NAME = "condition";
@@ -91,7 +93,11 @@ public class ConditionRouter extends AbstractRouter {
             if (rule == null || rule.trim().length() == 0) {
                 throw new IllegalArgumentException("Illegal route rule!");
             }
+
+            // 过滤掉consumer和provider前缀，方便后续切割出路由规则
             rule = rule.replace("consumer.", "").replace("provider.", "");
+
+            // 以 => 为分割线，前面部分是消费者规则（scope为application时限制应用名，scope为service时限制方法名），后面部分为提供者规则（那些地址的提供者可以提供服务）
             int i = rule.indexOf("=>");
             String whenRule = i < 0 ? null : rule.substring(0, i).trim();
             String thenRule = i < 0 ? rule.trim() : rule.substring(i + 2).trim();
@@ -115,8 +121,11 @@ public class ConditionRouter extends AbstractRouter {
         MatchPair pair = null;
         // Multiple values
         Set<String> values = null;
+
+        // 匹配规则字符串，一个个匹配
         final Matcher matcher = ROUTE_PATTERN.matcher(rule);
-        while (matcher.find()) { // Try to match one by one
+        // Try to match one by one
+        while (matcher.find()) {
             String separator = matcher.group(1);
             String content = matcher.group(2);
             // Start part of the condition expression.
@@ -186,6 +195,7 @@ public class ConditionRouter extends AbstractRouter {
             return invokers;
         }
         try {
+            // 如果对当前消费者无路由限制，则直接返回所有可用的invoker
             if (!matchWhen(url, invocation)) {
                 return invokers;
             }

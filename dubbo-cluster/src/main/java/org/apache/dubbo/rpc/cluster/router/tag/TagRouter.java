@@ -44,6 +44,7 @@ import static org.apache.dubbo.rpc.Constants.FORCE_USE_TAG;
 
 /**
  * TagRouter, "application.tag-router"
+ * @see <a href="https://dubbo.apache.org/zh/docs/advanced/routing-rule/#%E6%A0%87%E7%AD%BE%E8%B7%AF%E7%94%B1%E8%A7%84%E5%88%99"/>
  */
 public class TagRouter extends AbstractRouter implements ConfigurationListener {
     public static final String NAME = "TAG_ROUTER";
@@ -91,29 +92,43 @@ public class TagRouter extends AbstractRouter implements ConfigurationListener {
 
         // since the rule can be changed by config center, we should copy one to use.
         final TagRouterRule tagRouterRuleCopy = tagRouterRule;
+
+        // 如果没有标签规则，或规则无效/未生效，则使用静态标签来过滤
         if (tagRouterRuleCopy == null || !tagRouterRuleCopy.isValid() || !tagRouterRuleCopy.isEnabled()) {
             return filterUsingStaticTag(invokers, url, invocation);
         }
 
         List<Invoker<T>> result = invokers;
+
+        // 提取消费者配置的tag
         String tag = StringUtils.isEmpty(invocation.getAttachment(TAG_KEY)) ? url.getParameter(TAG_KEY) :
                 invocation.getAttachment(TAG_KEY);
 
         // if we are requesting for a Provider with a specific tag
         if (StringUtils.isNotEmpty(tag)) {
+
+            // 获取对应标签的动态路由规则
             List<String> addresses = tagRouterRuleCopy.getTagnameToAddresses().get(tag);
             // filter by dynamic tag group first
             if (CollectionUtils.isNotEmpty(addresses)) {
+
+                // 根据动态路由规则上配置的地址，和当前地址进行比较并过滤
                 result = filterInvoker(invokers, invoker -> addressMatches(invoker.getUrl(), addresses));
+
+                // 如果过滤结果不为空，或动态路由规则有要求强制使用，则直接返回筛选结果
                 // if result is not null OR it's null but force=true, return result directly
                 if (CollectionUtils.isNotEmpty(result) || tagRouterRuleCopy.isForce()) {
                     return result;
                 }
             } else {
+
+                // 如果动态路由规则上未配置地址相关信息，则只筛选invoker上的标签
                 // dynamic tag group doesn't have any item about the requested app OR it's null after filtered by
                 // dynamic tag group but force=false. check static tag
                 result = filterInvoker(invokers, invoker -> tag.equals(invoker.getUrl().getParameter(TAG_KEY)));
             }
+
+            // 如果筛选结果不为空，或消费者有配置强制使用标签，则直接返回筛选结果
             // If there's no tagged providers that can match the current tagged request. force.tag is set by default
             // to false, which means it will invoke any providers without a tag unless it's explicitly disallowed.
             if (CollectionUtils.isNotEmpty(result) || isForceUseTag(invocation)) {
@@ -121,15 +136,20 @@ public class TagRouter extends AbstractRouter implements ConfigurationListener {
             }
             // FAILOVER: return all Providers without any tags.
             else {
+
+                // 筛选出所有不符合动态路由规则配置地址的invoker，todo 不太确认这是为什么，直接从原invokers中筛选出所有不带tag的invoker返回不行吗？
                 List<Invoker<T>> tmp = filterInvoker(invokers, invoker -> addressNotMatches(invoker.getUrl(),
                         tagRouterRuleCopy.getAddresses()));
                 return filterInvoker(tmp, invoker -> StringUtils.isEmpty(invoker.getUrl().getParameter(TAG_KEY)));
             }
         } else {
+            // 消费者未配置tag
             // List<String> addresses = tagRouterRule.filter(providerApp);
             // return all addresses in dynamic tag group.
             List<String> addresses = tagRouterRuleCopy.getAddresses();
             if (CollectionUtils.isNotEmpty(addresses)) {
+
+                // 筛选出所有不在动态路由规则配置地址中的invoker，如果为空，说明当前所有invoker都是配置在动态路由规则中的，没有未配置在动态路由规则中的invoker（无可用的provider），直接返回空集合即可
                 result = filterInvoker(invokers, invoker -> addressNotMatches(invoker.getUrl(), addresses));
                 // 1. all addresses are in dynamic tag group, return empty list.
                 if (CollectionUtils.isEmpty(result)) {
@@ -138,8 +158,12 @@ public class TagRouter extends AbstractRouter implements ConfigurationListener {
                 // 2. if there are some addresses that are not in any dynamic tag group, continue to filter using the
                 // static tag group.
             }
+
+            // 当前存在invoker不在动态路由规则配置地址中，筛选这部分的invoker并返回
             return filterInvoker(result, invoker -> {
                 String localTag = invoker.getUrl().getParameter(TAG_KEY);
+
+                // tag为空，或tag非动态路由规则配置的tag
                 return StringUtils.isEmpty(localTag) || !tagRouterRuleCopy.getTagNames().contains(localTag);
             });
         }
@@ -161,16 +185,23 @@ public class TagRouter extends AbstractRouter implements ConfigurationListener {
      */
     private <T> List<Invoker<T>> filterUsingStaticTag(List<Invoker<T>> invokers, URL url, Invocation invocation) {
         List<Invoker<T>> result;
+
+        // 获取消费者的tag，从invocation中或url上获取
         // Dynamic param
         String tag = StringUtils.isEmpty(invocation.getAttachment(TAG_KEY)) ? url.getParameter(TAG_KEY) :
                 invocation.getAttachment(TAG_KEY);
         // Tag request
         if (!StringUtils.isEmpty(tag)) {
+            // 从invoker集合中过滤出有相关tag的invoker
             result = filterInvoker(invokers, invoker -> tag.equals(invoker.getUrl().getParameter(TAG_KEY)));
+
+            // 如果没有相关可用的invoker，且当前不强制要求tag，则降级，使用无tag的invoker
             if (CollectionUtils.isEmpty(result) && !isForceUseTag(invocation)) {
                 result = filterInvoker(invokers, invoker -> StringUtils.isEmpty(invoker.getUrl().getParameter(TAG_KEY)));
             }
         } else {
+
+            // 当前未配置tag，直接使用无tag的invoker
             result = filterInvoker(invokers, invoker -> StringUtils.isEmpty(invoker.getUrl().getParameter(TAG_KEY)));
         }
         return result;

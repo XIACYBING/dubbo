@@ -50,8 +50,12 @@ public class MockInvokersSelector extends AbstractRouter {
         }
 
         if (invocation.getObjectAttachments() == null) {
+
+            // 返回mock协议的invoker，或者所有invoker
             return getNormalInvokers(invokers);
         } else {
+
+            // 根据配置判断是强制使用mock协议的invoker，还是可以使用正常的invoker
             String value = (String) invocation.getObjectAttachments().get(INVOCATION_NEED_MOCK);
             if (value == null) {
                 return getNormalInvokers(invokers);
@@ -62,6 +66,9 @@ public class MockInvokersSelector extends AbstractRouter {
         return invokers;
     }
 
+    /**
+     * 返回mock协议的invoker，如果不存在则返回null
+     */
     private <T> List<Invoker<T>> getMockedInvokers(final List<Invoker<T>> invokers) {
         if (!hasMockProviders(invokers)) {
             return null;
@@ -75,10 +82,17 @@ public class MockInvokersSelector extends AbstractRouter {
         return sInvokers;
     }
 
+    /**
+     * 返回mock协议的invoker，如果不存在则返回所有invoker
+     */
     private <T> List<Invoker<T>> getNormalInvokers(final List<Invoker<T>> invokers) {
+
+        // 如果不存在mock协议的invoker，直接返回所有invoker
         if (!hasMockProviders(invokers)) {
             return invokers;
         } else {
+
+            // 否则过滤出mock协议的invoker并返回
             List<Invoker<T>> sInvokers = new ArrayList<Invoker<T>>(invokers.size());
             for (Invoker<T> invoker : invokers) {
                 if (!invoker.getUrl().getProtocol().equals(MOCK_PROTOCOL)) {
@@ -89,6 +103,9 @@ public class MockInvokersSelector extends AbstractRouter {
         }
     }
 
+    /**
+     * 是否存在mock协议的invoker
+     */
     private <T> boolean hasMockProviders(final List<Invoker<T>> invokers) {
         boolean hasMockProvider = false;
         for (Invoker<T> invoker : invokers) {
