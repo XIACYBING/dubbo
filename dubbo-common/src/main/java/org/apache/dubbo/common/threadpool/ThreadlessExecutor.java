@@ -36,6 +36,11 @@ import java.util.concurrent.TimeoutException;
  * Tasks submitted to this executor through {@link #execute(Runnable)} will not get scheduled to a specific thread, though normal executors always do the schedule.
  * Those tasks are stored in a blocking queue and will only be executed when a thread calls {@link #waitAndDrain()}, the thread executing the task
  * is exactly the same as the one calling waitAndDrain.
+ *
+ * 当前线程池和其他线程池的最大区别是不管理任何线程，当前线程池只会把任务保存在{@link #queue}集合中，外部必须手动调用{@link #waitAndDrain()}，{@link #waitAndDrain()}
+ * 方法会从{@link #queue}中获取Runnable任务，并执行{@link Runnable#run()}，以完成任务
+ *
+ * 如果{@link #waiting}表示为{@code false}，则表示提交给当前线程池的任务全部由{@link #sharedExecutor}处理
  */
 public class ThreadlessExecutor extends AbstractExecutorService {
     private static final Logger logger = LoggerFactory.getLogger(ThreadlessExecutor.class.getName());
@@ -48,6 +53,9 @@ public class ThreadlessExecutor extends AbstractExecutorService {
 
     private boolean finished = false;
 
+    /**
+     * 任务是否等待处理：true/任务被提交到{@link #queue}中，直到{@link #waitAndDrain()}被调用，任务才会被处理；false/任务会直接被{@link #sharedExecutor}处理
+     */
     private volatile boolean waiting = true;
 
     private final Object lock = new Object();
@@ -73,7 +81,7 @@ public class ThreadlessExecutor extends AbstractExecutorService {
      * response or a timeout response.
      */
     public void waitAndDrain() throws InterruptedException {
-        /**
+        /*
          * Usually, {@link #waitAndDrain()} will only get called once. It blocks for the response for the first time,
          * once the response (the task) reached and being executed waitAndDrain will return, the whole request process
          * then finishes. Subsequent calls on {@link #waitAndDrain()} (if there're any) should return immediately.
@@ -82,28 +90,40 @@ public class ThreadlessExecutor extends AbstractExecutorService {
          * 'finished' only appear in waitAndDrain, since waitAndDrain is binding to one RPC call (one thread), the call
          * of it is totally sequential.
          */
+
+        // 如果任务以完成，直接返回
         if (finished) {
             return;
         }
 
         Runnable runnable;
         try {
+
+            // 获取一个runnable任务：可能会阻塞
             runnable = queue.take();
         }catch (InterruptedException e){
+
+            // 执行发生异常，后续提交的任务交给sharedExecutor处理
             waiting = false;
             throw e;
         }
 
+        // 执行任务
         synchronized (lock) {
+
+            // 当前正在执行任务，后续提交的任务交给sharedExecutor处理
             waiting = false;
             runnable.run();
         }
 
+        // 循环处理queue中剩余的任务，poll不会阻塞
         runnable = queue.poll();
         while (runnable != null) {
             runnable.run();
             runnable = queue.poll();
         }
+
+        // 处理完成所有任务，标记状态
         // mark the status of ThreadlessExecutor as finished.
         finished = true;
     }
@@ -132,7 +152,11 @@ public class ThreadlessExecutor extends AbstractExecutorService {
      */
     @Override
     public void execute(Runnable runnable) {
+
+        // 包装任务
         runnable = new RunnableWrapper(runnable);
+
+        // 提交任务：根据waiting状态进行不同的处理
         synchronized (lock) {
             if (!waiting) {
                 sharedExecutor.execute(runnable);
@@ -148,6 +172,8 @@ public class ThreadlessExecutor extends AbstractExecutorService {
     public void notifyReturn(Throwable t) {
         // an empty runnable task.
         execute(() -> {
+
+            // 设置异常，当调用get或其他方法时，会抛出该异常
             waitingFuture.completeExceptionally(t);
         });
     }

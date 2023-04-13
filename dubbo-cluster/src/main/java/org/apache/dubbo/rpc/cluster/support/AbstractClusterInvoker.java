@@ -251,17 +251,27 @@ public abstract class AbstractClusterInvoker<T> implements ClusterInvoker<T> {
 
     @Override
     public Result invoke(final Invocation invocation) throws RpcException {
+
+        // 校验状态
         checkWhetherDestroyed();
 
+        // 获取当前线程上下文的附件，绑定到invocation上
         // binding attachments into invocation.
         Map<String, Object> contextAttachments = RpcContext.getContext().getObjectAttachments();
         if (contextAttachments != null && contextAttachments.size() != 0) {
             ((RpcInvocation) invocation).addObjectAttachments(contextAttachments);
         }
 
+        // 获取当前可调用的服务提供者invoker集合
         List<Invoker<T>> invokers = list(invocation);
+
+        // 根据服务提供者集合invokers获取负载均衡器，默认值是random负载均衡器
         LoadBalance loadbalance = initLoadBalance(invokers, invocation);
+
+        // 幂等处理，主要是用来生成请求id，标识此次请求，id也会传输给提供者，然后提供者会在响应中带上该id，让我们能知道响应对应的是哪个请求的
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
+
+        // 进行实际的调用操作：走的是FailoverClusterInvoker.doInvoke
         return doInvoke(invocation, invokers, loadbalance);
     }
 
@@ -309,10 +319,16 @@ public abstract class AbstractClusterInvoker<T> implements ClusterInvoker<T> {
      * @return LoadBalance instance. if not need init, return null.
      */
     protected LoadBalance initLoadBalance(List<Invoker<T>> invokers, Invocation invocation) {
+
+        // 如果invokers不为空
         if (CollectionUtils.isNotEmpty(invokers)) {
+
+            // 从第一个invoker的url上，对应的方法后获取loadbalance对应的key，默认值是random
             return ExtensionLoader.getExtensionLoader(LoadBalance.class).getExtension(invokers.get(0).getUrl()
                     .getMethodParameter(RpcUtils.getMethodName(invocation), LOADBALANCE_KEY, DEFAULT_LOADBALANCE));
         } else {
+
+            // 如果invoker为空，则直接加载默认的random负载均衡器
             return ExtensionLoader.getExtensionLoader(LoadBalance.class).getExtension(DEFAULT_LOADBALANCE);
         }
     }

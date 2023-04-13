@@ -75,6 +75,8 @@ public class ListenerInvokerWrapper<T> implements Invoker<T> {
 
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
+
+        // 调用实际的invoker.invoke，一般是AsyncToSyncInvoker.invoke，返回的Result一般是AsyncRpcResult
         return invoker.invoke(invocation);
     }
 

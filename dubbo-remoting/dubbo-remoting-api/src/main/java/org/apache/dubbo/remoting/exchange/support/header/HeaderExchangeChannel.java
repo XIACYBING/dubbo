@@ -118,27 +118,47 @@ final class HeaderExchangeChannel implements ExchangeChannel {
 
     @Override
     public CompletableFuture<Object> request(Object request, ExecutorService executor) throws RemotingException {
+
+        // 增加timeout参数，调用重载的request方法
         return request(request, channel.getUrl().getPositiveParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT), executor);
     }
 
     @Override
     public CompletableFuture<Object> request(Object request, int timeout, ExecutorService executor) throws RemotingException {
+
+        // 状态检查
         if (closed) {
             throw new RemotingException(this.getLocalAddress(), null,
                     "Failed to send request " + request + ", cause: The channel " + this + " is closed!");
         }
+
+        // 创建Request
         // create request.
         Request req = new Request();
         req.setVersion(Version.getProtocolVersion());
+
+        // twoWay模式：双向通信，需要接收服务端的响应，在不设置oneWay属性时，twoWay是默认的通讯模式
         req.setTwoWay(true);
+
+        // 外部传入的request作为data字段的值
         req.setData(request);
+
+        // 关联channel、req、timeout和executor，生成DefaultFuture，返回给外部获取结果
+        // 此处应该不关注结果，HeaderExchangeHandler会将响应数据通过DefaultFuture.received方法设置到对应的DefaultFuture中
         DefaultFuture future = DefaultFuture.newFuture(channel, req, timeout, executor);
         try {
+
+            // 通过channel发送请求：netty4的NettyClient.send，实际是父类：AbstractPeer.send
+            // channel代表当前消费者和服务端的连接通道，可以直接发送数据
             channel.send(req);
         } catch (RemotingException e) {
+
+            // 异常则cancel掉future
             future.cancel();
             throw e;
         }
+
+        // 对外返回future
         return future;
     }
 

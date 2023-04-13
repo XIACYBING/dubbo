@@ -87,6 +87,8 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     @Override
     public CompletableFuture<Object> request(Object request, ExecutorService executor) throws RemotingException {
+
+        // 通过channel发送请求：HeaderExchangeChannel.request
         return channel.request(request, executor);
     }
 

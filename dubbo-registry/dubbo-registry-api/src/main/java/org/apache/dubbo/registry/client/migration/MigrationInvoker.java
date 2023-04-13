@@ -49,8 +49,20 @@ public class MigrationInvoker<T> implements MigrationClusterInvoker<T> {
     private Class<T> type;
     private RegistryProtocol registryProtocol;
 
+    /**
+     * 当前有效的invoker
+     */
     private volatile ClusterInvoker<T> invoker;
+
+    /**
+     * 基于注册中心，进行服务发现的invoker，如果{@link #invoker}无效，则需要通过{@link #serviceDiscoveryInvoker}获取一个有效的invoker用来调用
+     */
     private volatile ClusterInvoker<T> serviceDiscoveryInvoker;
+
+    /**
+     * 当前有效的invoker，可能是{@link #invoker}，也可能是{@link #serviceDiscoveryInvoker}，会在相关方法中被更新，如果{@link #invoker}和
+     * {@link #serviceDiscoveryInvoker}都可用，会用{@link #currentAvailableInvoker}进行invoke调用
+     */
     private volatile ClusterInvoker<T> currentAvailableInvoker;
 
     private MigrationRule rule;
@@ -163,13 +175,20 @@ public class MigrationInvoker<T> implements MigrationClusterInvoker<T> {
 
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
+
+        // currentAvailableInvoker可能是serviceDiscoveryInvoker，也可能是invoker，如果两者都有效，则走currentAvailableInvoker进行invoke调用
+
+        // 校验serviceDiscoveryInvoker的有效性，如果无效，则直接使用实际的invoker
         if (!checkInvokerAvailable(serviceDiscoveryInvoker)) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Using interface addresses to handle invocation, interface " + type.getName() + ", total address size " + (invoker.getDirectory().getAllInvokers() == null ? "is null" : invoker.getDirectory().getAllInvokers().size()));
             }
+
+            // 当前invoker一般是MockClusterInvoker
             return invoker.invoke(invocation);
         }
 
+        // 如果invoker无效，需要通过serviceDiscoveryInvoker再次选择一个invoker来进行调用
         if (!checkInvokerAvailable(invoker)) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Using instance addresses to handle invocation, interface " + type.getName() + ", total address size " + (serviceDiscoveryInvoker.getDirectory().getAllInvokers() == null ? " is null " : serviceDiscoveryInvoker.getDirectory().getAllInvokers().size()));
@@ -177,6 +196,7 @@ public class MigrationInvoker<T> implements MigrationClusterInvoker<T> {
             return serviceDiscoveryInvoker.invoke(invocation);
         }
 
+        // 两者都有效，则使用currentAvailableInvoker（通过外部维护的，当前有效时使用的invoker）
         return currentAvailableInvoker.invoke(invocation);
     }
 
@@ -370,6 +390,11 @@ public class MigrationInvoker<T> implements MigrationClusterInvoker<T> {
         return invoker == null || invoker.isDestroyed();
     }
 
+    /**
+     * 校验集群invoker的有效性
+     * @param invoker 集群invoker
+     * @return true/有效，false/无效
+     */
     public boolean checkInvokerAvailable(ClusterInvoker<T> invoker) {
         return invoker != null && !invoker.isDestroyed() && invoker.isAvailable();
     }

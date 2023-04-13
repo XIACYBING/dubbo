@@ -21,6 +21,8 @@ import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.ReflectUtils;
 import org.apache.dubbo.common.utils.StringUtils;
+import org.apache.dubbo.remoting.Channel;
+import org.apache.dubbo.remoting.exchange.support.DefaultFuture;
 import org.apache.dubbo.rpc.Invocation;
 import org.apache.dubbo.rpc.InvokeMode;
 import org.apache.dubbo.rpc.RpcContext;
@@ -42,9 +44,9 @@ import static org.apache.dubbo.rpc.Constants.$ECHO;
 import static org.apache.dubbo.rpc.Constants.$ECHO_PARAMETER_DESC;
 import static org.apache.dubbo.rpc.Constants.ASYNC_KEY;
 import static org.apache.dubbo.rpc.Constants.AUTO_ATTACH_INVOCATIONID_KEY;
+import static org.apache.dubbo.rpc.Constants.GENERIC_KEY;
 import static org.apache.dubbo.rpc.Constants.ID_KEY;
 import static org.apache.dubbo.rpc.Constants.RETURN_KEY;
-import static org.apache.dubbo.rpc.Constants.GENERIC_KEY;
 
 /**
  * RpcUtils
@@ -107,6 +109,11 @@ public class RpcUtils {
 
     /**
      * Idempotent operation: invocation id will be added in async operation by default
+     *
+     * 幂等处理，生成调用id，该id会用来在{@link DefaultFuture#FUTURES}和{@link DefaultFuture#CHANNELS}中表示请求的{@link DefaultFuture}
+     * 和用来发送请求的{@link Channel}
+     *
+     * 方法名称上的isAsync是指：发起请求后生成一个{@link DefaultFuture}，然后其他线程接收请求后设置响应结果，这两个操作非同步
      *
      * @param url
      * @param inv

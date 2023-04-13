@@ -170,14 +170,22 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
 
     @Override
     public void send(Object message, boolean sent) throws RemotingException {
+
+        // 连接断开，进行重连
         if (needReconnect && !isConnected()) {
             connect();
         }
+
+        // 获取Channel：返回netty4的NettyChannel
         Channel channel = getChannel();
+
+        // channel为空，或channel连接断开，则抛出异常
         //TODO Can the value returned by getChannel() be null? need improvement.
         if (channel == null || !channel.isConnected()) {
             throw new RemotingException(this, "message can not send, because channel is closed . url:" + getUrl());
         }
+
+        // 通过channel发送数据：netty4的NettyChannel.send
         channel.send(message, sent);
     }
 

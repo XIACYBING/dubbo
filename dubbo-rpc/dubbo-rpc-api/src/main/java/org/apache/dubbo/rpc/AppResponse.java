@@ -16,7 +16,6 @@
  */
 package org.apache.dubbo.rpc;
 
-
 import org.apache.dubbo.rpc.proxy.InvokerInvocationHandler;
 
 import java.util.HashMap;
@@ -78,6 +77,8 @@ public class AppResponse implements Result {
 
     @Override
     public Object recreate() throws Throwable {
+
+        // 如果有异常，则抛出异常
         if (exception != null) {
             // fix issue#619
             try {
@@ -90,6 +91,8 @@ public class AppResponse implements Result {
             }
             throw exception;
         }
+
+        // 否则返回response中的结果，即实际的结果
         return result;
     }
 

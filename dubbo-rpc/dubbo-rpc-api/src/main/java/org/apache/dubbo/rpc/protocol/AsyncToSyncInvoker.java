@@ -49,9 +49,15 @@ public class AsyncToSyncInvoker<T> implements Invoker<T> {
 
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
+
+        // 开始进行真正的invoke：DubboInvoker.invoke
+        // 实际上是AbstractInvoker.invoke -> DubboInvoker.doInvoke
+        // DubboInvoker返回的Result类型为AsyncRpcResult
         Result asyncResult = invoker.invoke(invocation);
 
         try {
+
+            // 同步请求，调用get从Result中获取结果，不获取结果，只是等待任务完成：即服务提供者返回响应
             if (InvokeMode.SYNC == ((RpcInvocation) invocation).getInvokeMode()) {
                 /**
                  * NOTICE!
@@ -60,10 +66,16 @@ public class AsyncToSyncInvoker<T> implements Invoker<T> {
                  */
                 asyncResult.get(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
             }
-        } catch (InterruptedException e) {
+        }
+
+        // 发生线程中断，包装异常并对外抛出
+        catch (InterruptedException e) {
             throw new RpcException("Interrupted unexpectedly while waiting for remote result to return!  method: " +
                     invocation.getMethodName() + ", provider: " + getUrl() + ", cause: " + e.getMessage(), e);
-        } catch (ExecutionException e) {
+        }
+
+        // 任务执行异常，获取实际的异常原因，根据实际的异常原因，给出不同的异常提示，包装后对外抛出异常
+        catch (ExecutionException e) {
             Throwable t = e.getCause();
             if (t instanceof TimeoutException) {
                 throw new RpcException(RpcException.TIMEOUT_EXCEPTION, "Invoke remote method timeout. method: " +
@@ -75,7 +87,10 @@ public class AsyncToSyncInvoker<T> implements Invoker<T> {
                 throw new RpcException(RpcException.UNKNOWN_EXCEPTION, "Fail to invoke remote method: " +
                         invocation.getMethodName() + ", provider: " + getUrl() + ", cause: " + e.getMessage(), e);
             }
-        } catch (Throwable e) {
+        }
+
+        // 其他异常，包装后对外抛出
+        catch (Throwable e) {
             throw new RpcException(e.getMessage(), e);
         }
         return asyncResult;

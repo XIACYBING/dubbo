@@ -87,9 +87,16 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
 
+        // 从消费者url上获取mock参数的值，默认值为false
         String value = getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
+
+        // 没有mock，直接通过invoker调用服务提供者
         if (value.length() == 0 || "false".equalsIgnoreCase(value)) {
             //no mock
+
+            // 实际走的是AbstractCluster.InterceptorInvokerNode.invoke方法，即：开始拦截器拦截链路
+            // MockCluster -> 拦截器拦截链路 -> 集群失败重试FailoverClusterInvoker -> 过滤器过滤链路（FilterNode.invoke）
+            // -> 监听器监听（ListenerInvokerWrapper，目前只有几个内置监听器） -> 协议调用（DubboInvoker/GrpcInvoker...） -> 数据传输
             result = this.invoker.invoke(invocation);
         } else if (value.startsWith("force")) {
             if (logger.isWarnEnabled()) {

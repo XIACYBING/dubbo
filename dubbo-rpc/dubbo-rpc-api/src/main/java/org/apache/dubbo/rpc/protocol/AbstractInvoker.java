@@ -138,17 +138,24 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
 
     @Override
     public Result invoke(Invocation inv) throws RpcException {
+
+        // 如果当前invoker已经销毁，打印警告日志，但是还是继续invoke
         // if invoker is destroyed due to address refresh from registry, let's allow the current invoke to proceed
         if (destroyed.get()) {
             logger.warn("Invoker for service " + this + " on consumer " + NetUtils.getLocalHost() + " is destroyed, "
                     + ", dubbo version is " + Version.getVersion() + ", this invoker should not be used any longer");
         }
+
+        // invocation关联当前invoke（实际的类型一般是DubboInvoker）
         RpcInvocation invocation = (RpcInvocation) inv;
         invocation.setInvoker(this);
+
+        // 在invocation上附加当前invoker的附件
         if (CollectionUtils.isNotEmptyMap(attachment)) {
             invocation.addObjectAttachmentsIfAbsent(attachment);
         }
 
+        // 附加消费上下文的附件内容
         Map<String, Object> contextAttachments = RpcContext.getContext().getObjectAttachments();
         if (CollectionUtils.isNotEmptyMap(contextAttachments)) {
             /**
@@ -160,9 +167,13 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
             invocation.addObjectAttachments(contextAttachments);
         }
 
+        // 设置InvokeMode：SYNC和ASYNC比较好理解，FUTURE模式则是指直接将承载结果的DefaultFuture返回出去
         invocation.setInvokeMode(RpcUtils.getInvokeMode(url, invocation));
+
+        // 生成请求id，标识本次请求
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
 
+        // 获取序列化方式的id，默认是hessian2，并放到invocation中
         Byte serializationId = CodecSupport.getIDByName(getUrl().getParameter(SERIALIZATION_KEY, DEFAULT_REMOTING_SERIALIZATION));
         if (serializationId != null) {
             invocation.put(SERIALIZATION_ID_KEY, serializationId);
@@ -170,6 +181,9 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
 
         AsyncRpcResult asyncResult;
         try {
+
+            // 真正进行invoke逻辑，不同协议有不同实现：dubbo -> DubboInvoker，grpc -> GrpcInvoker，thrift -> ThriftInvoker，
+            // inJvm -> InJvmInvoker...
             asyncResult = (AsyncRpcResult) doInvoke(invocation);
         } catch (InvocationTargetException e) { // biz exception
             Throwable te = e.getTargetException();

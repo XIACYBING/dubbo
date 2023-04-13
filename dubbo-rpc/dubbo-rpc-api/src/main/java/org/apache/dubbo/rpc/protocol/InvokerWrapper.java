@@ -53,6 +53,8 @@ public class InvokerWrapper<T> implements Invoker<T> {
 
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
+
+        // 调用invoker，实际是开始过滤器链路：FilterNode.invoke
         return invoker.invoke(invocation);
     }
 

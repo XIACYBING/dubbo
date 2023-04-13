@@ -88,7 +88,13 @@ public abstract class AbstractCluster implements Cluster {
         public Result invoke(Invocation invocation) throws RpcException {
             Result asyncResult;
             try {
+
+                // 拦截的前置操作：将next设置到RpcInvocation（如果invocation是RpcInvocation）中并清理serverContext
                 interceptor.before(next, invocation);
+
+                //调用next的invoke，如果有多个拦截器，当前链路会像AOP一样进行interceptor.before -> interceptor.intercept -> next.invoke ->
+                // nextInterceptor.before -> nextInterceptor.intercept -> nextNext.invoke -> ... -> AbstractClusterInvoker.invoke
+                // 即：最后会进入到AbstractClusterInvoker.invoke方法
                 asyncResult = interceptor.intercept(next, invocation);
             } catch (Exception e) {
                 // onError callback
@@ -98,8 +104,12 @@ public abstract class AbstractCluster implements Cluster {
                 }
                 throw e;
             } finally {
+
+                // 拦截的后置处理：清理资源
                 interceptor.after(next, invocation);
             }
+
+            // 添加调用完成的回调消费者
             return asyncResult.whenCompleteWithContext((r, t) -> {
                 // onResponse callback
                 if (interceptor instanceof ClusterInterceptor.Listener) {

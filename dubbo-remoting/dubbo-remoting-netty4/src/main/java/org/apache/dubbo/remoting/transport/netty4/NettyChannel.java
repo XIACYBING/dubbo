@@ -153,26 +153,45 @@ final class NettyChannel extends AbstractChannel {
      */
     @Override
     public void send(Object message, boolean sent) throws RemotingException {
+
+        // 检查channel是否关闭
         // whether the channel is closed
         super.send(message, sent);
 
         boolean success = true;
         int timeout = 0;
         try {
+
+            // 调用netty接口，写入并刷新数据：NioSocketChannel.writeAndFlush
+            // ChannelFuture不需要对外返回，可以通过其他方法从channel中获取服务提供者的响应数据
             ChannelFuture future = channel.writeAndFlush(message);
+
+            // 如果sent为true，则需要超时等待服务提供者的响应
             if (sent) {
+
+                // 超时毫秒数，默认值为1000
                 // wait timeout ms
                 timeout = getUrl().getPositiveParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT);
+
+                // 等待响应，如果超时时间内提供者返回响应，则返回true，否则返回false
                 success = future.await(timeout);
             }
+
+            // 获取异常，不为空则直接对外抛出
             Throwable cause = future.cause();
             if (cause != null) {
                 throw cause;
             }
         } catch (Throwable e) {
+
+            // 如果连接断开，则移除当前channel
             removeChannelIfDisconnected(channel);
+
+            // 包装异常
             throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress() + ", cause: " + e.getMessage(), e);
         }
+
+        // 请求失败时，抛出异常；sent为false时，不需要等待服务端响应回来，可以先返回给外围，此时success为true
         if (!success) {
             throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress()
                     + "in timeout(" + timeout + "ms) limit");

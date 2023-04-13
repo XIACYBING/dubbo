@@ -107,6 +107,9 @@ public interface Constants {
 
     String BIND_PORT_KEY = "bind.port";
 
+    /**
+     * sent为true：代表在请求发起后需要等待响应，超时时间内没有响应，则抛出异常
+     */
     String SENT_KEY = "sent";
 
     String DISPATCHER_KEY = "dispatcher";

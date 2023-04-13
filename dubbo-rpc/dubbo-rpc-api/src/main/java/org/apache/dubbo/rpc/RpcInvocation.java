@@ -50,7 +50,16 @@ public class RpcInvocation implements Invocation, Serializable {
 
     private static final long serialVersionUID = -4355285085441097045L;
 
+    /**
+     * 目标服务唯一名称，一般是serviceKey：{group}/interfaceName:{version}
+     */
     private String targetServiceUniqueName;
+
+    /**
+     * 由serviceKey和协议组成的字符串，比如com.xxx.yyy.AService接口，dubbo协议，group为AGroup，version为3：AGroup/com.xxx.yyy.AService:3:dubbo
+     *
+     * format:{group}/interfaceName:{version}:protocol
+     */
     private String protocolServiceKey;
 
     private String methodName;

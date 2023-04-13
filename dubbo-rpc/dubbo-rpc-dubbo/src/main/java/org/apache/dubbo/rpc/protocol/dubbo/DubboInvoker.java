@@ -84,10 +84,15 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
     @Override
     protected Result doInvoke(final Invocation invocation) throws Throwable {
         RpcInvocation inv = (RpcInvocation) invocation;
+
+        // 获取方法名称
         final String methodName = RpcUtils.getMethodName(invocation);
+
+        // 在invocation上附加path和version
         inv.setAttachment(PATH_KEY, getUrl().getPath());
         inv.setAttachment(VERSION_KEY, version);
 
+        // 获取一个exchangeClient
         ExchangeClient currentClient;
         if (clients.length == 1) {
             currentClient = clients[0];
@@ -98,16 +103,38 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
             int timeout = calculateTimeout(invocation, methodName);
             invocation.put(TIMEOUT_KEY, timeout);
+
+            // 如果是oneway，则直接发送，而不管返回值
+            // oneway：单项通讯，客户端发起请求后不需要等待服务端的响应，也不会接收到服务端的响应，适用于不需要返回结果，只需要服务端接收请求并处理的场景
             if (isOneway) {
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
                 currentClient.send(inv, isSent);
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);
-            } else {
+            }
+
+            // 否则需要处理返回值
+            else {
+
+                // 根据提供者url和invocation获取线程池
                 ExecutorService executor = getCallbackExecutor(getUrl(), inv);
+
+                // 调用ExchangeClient发送请求，并在完成后将结果强转为AppResponse
                 CompletableFuture<AppResponse> appResponseFuture =
-                        currentClient.request(inv, timeout, executor).thenApply(obj -> (AppResponse) obj);
+
+                    // ReferenceCountExchangeClient.request -> HeaderExchangeClient.request
+                    // -> HeaderExchangeChannel.request -> netty4的NettyClient.send
+                        currentClient.request(inv, timeout, executor)
+
+                                     // obj最终是通过HeaderExchangeHandler接收到的Response，将Response
+                                     // .result设置到DefaultFuture（DefaultFuture是CompletableFuture的子类）的结果中
+                                     // 服务端返回结果类型一定是AppResponse（可能是子类，比如DecodeableRpcResult）
+                                     .thenApply(obj -> (AppResponse) obj);
+
+                // 设置responseFuture，如果外部调用的是future，AsyncRpcResult.recreate会直接返回appResponseFuture
                 // save for 2.6.x compatibility, for example, TraceFilter in Zipkin uses com.alibaba.xxx.FutureAdapter
                 FutureContext.getContext().setCompatibleFuture(appResponseFuture);
+
+                // 包装appResponseFuture为AsyncRpcResult，并关联线程池，对外返回，线程池会被用来执行某些检查，比如请求后的超时检查等...
                 AsyncRpcResult result = new AsyncRpcResult(appResponseFuture, inv);
                 result.setExecutor(executor);
                 return result;

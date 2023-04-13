@@ -376,6 +376,8 @@ public class HashedWheelTimer implements Timer {
 
     @Override
     public Timeout newTimeout(TimerTask task, long delay, TimeUnit unit) {
+
+        // task和unit都不能为空
         if (task == null) {
             throw new NullPointerException("task");
         }
@@ -402,7 +404,11 @@ public class HashedWheelTimer implements Timer {
         if (delay > 0 && deadline < 0) {
             deadline = Long.MAX_VALUE;
         }
+
+        // 执行超时时间deadline，生成一个HashedWheelTimeout，等待超时后触发task
         HashedWheelTimeout timeout = new HashedWheelTimeout(this, task, deadline);
+
+        // 加入到超时检查队列中
         timeouts.add(timeout);
         return timeout;
     }

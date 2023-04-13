@@ -50,6 +50,10 @@ public abstract class AbstractPeer implements Endpoint, ChannelHandler {
 
     @Override
     public void send(Object message) throws RemotingException {
+
+        // 发送数据，message是包装过的request，其中的data是invocation
+        // 实际调用的是子类的AbstractClient.send，当前类的实例类对象是netty4的NettyClient
+        // 如果sent为true，则需要在请求发起后等待结果响应，超时时间内没有响应，则抛出超时异常
         send(message, url.getParameter(Constants.SENT_KEY, false));
     }
 

@@ -57,6 +57,8 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
 
     static void handleResponse(Channel channel, Response response) throws RemotingException {
         if (response != null && !response.isHeartbeat()) {
+
+            // 只设置Response的result数据到channel对应的DefaultFuture中
             DefaultFuture.received(channel, response);
         }
     }

@@ -142,6 +142,8 @@ public class AsyncRpcResult implements Result {
 
     public Result getAppResponse() {
         try {
+
+            // 如果异步任务以完成，获取结果返回，结果类型一般是DecodeableRpcResult（AppResponse和Result的子类）
             if (responseFuture.isDone()) {
                 return responseFuture.get();
             }
@@ -151,6 +153,7 @@ public class AsyncRpcResult implements Result {
             throw new RpcException(e);
         }
 
+        // responseFuture还未完成，也没超时，创建默认返回
         return createDefaultValue(invocation);
     }
 
@@ -174,23 +177,34 @@ public class AsyncRpcResult implements Result {
 
     @Override
     public Result get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+
+        // 如果线程池是ThreadlessExecutor，则需要将其所有任务先执行完
         if (executor != null && executor instanceof ThreadlessExecutor) {
             ThreadlessExecutor threadlessExecutor = (ThreadlessExecutor) executor;
             threadlessExecutor.waitAndDrain();
         }
+
+        // 从响应future中获取响应：其实是等待HeaderExchangeHandler接收Response，并将Response设置到responseFuture中
         return responseFuture.get(timeout, unit);
     }
 
     @Override
     public Object recreate() throws Throwable {
+
+        // 获取invocation
         RpcInvocation rpcInvocation = (RpcInvocation) invocation;
+
+        // 调用模式是future，则直接返回future结果
         if (InvokeMode.FUTURE == rpcInvocation.getInvokeMode()) {
             return RpcContext.getContext().getFuture();
         }
 
+        // 获取实际的响应结果：getAppResponse返回DefaultFuture中get的结果（DecodeableRpcResult），recreate（走的是DecodeableRpcResult
+        // 的父类AppResponse的实现）则会将异常抛出（如果有），或结果返回
         return getAppResponse().recreate();
     }
 
+    @Override
     public Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn) {
         this.responseFuture = this.responseFuture.whenComplete((v, t) -> {
             beforeContext.accept(v, t);
