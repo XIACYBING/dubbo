@@ -20,6 +20,8 @@ import org.apache.dubbo.common.Node;
 import org.apache.dubbo.common.URL;
 
 /**
+ * 继承{@link Node}和{@link RegistryService}，表示{@link Registry}是一个具有注册中心能力的节点，而{@link #reExportRegister(URL)}和{@link #reExportUnregister(URL)}都是委托给{@link RegistryService}去处理
+ * <p>
  * Registry. (SPI, Prototype, ThreadSafe)
  *
  * @see org.apache.dubbo.registry.RegistryFactory#getRegistry(URL)

@@ -21,6 +21,8 @@ import org.apache.dubbo.common.extension.Adaptive;
 import org.apache.dubbo.common.extension.SPI;
 
 /**
+ * {@link Registry}的工厂接口，负责创建{@link Registry}对象
+ * <p>
  * RegistryFactory. (SPI, Singleton, ThreadSafe)
  *
  * @see org.apache.dubbo.registry.support.AbstractRegistryFactory
@@ -29,6 +31,8 @@ import org.apache.dubbo.common.extension.SPI;
 public interface RegistryFactory {
 
     /**
+     * 适配方法，会以URL上的protocol参数作为key获取对应的{@link Registry}实现，默认值是{@code dubbo}对应的{@link org.apache.dubbo.registry.dubbo.DubboRegistryFactory}
+     *
      * Connect to the registry
      * <p>
      * Connecting the registry needs to support the contract: <br>

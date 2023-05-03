@@ -25,8 +25,10 @@ import org.apache.dubbo.common.utils.ConfigUtils;
 import org.apache.dubbo.common.utils.NamedThreadFactory;
 import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.common.utils.UrlUtils;
+import org.apache.dubbo.registry.Constants;
 import org.apache.dubbo.registry.NotifyListener;
 import org.apache.dubbo.registry.Registry;
+import org.apache.dubbo.registry.RegistryFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -66,6 +68,16 @@ import static org.apache.dubbo.registry.Constants.REGISTRY_FILESAVE_SYNC_KEY;
 import static org.apache.dubbo.registry.Constants.REGISTRY__LOCAL_FILE_CACHE_ENABLED;
 
 /**
+ * 注册中心抽象类，提供以下方法的通用实现：
+ *
+ * @see #getUrl()
+ * @see #register(URL)
+ * @see #unregister(URL)
+ * @see #subscribe(URL, NotifyListener)
+ * @see #unsubscribe(URL, NotifyListener)
+ * @see #lookup(URL)
+ * @see #destroy()
+ * <p>
  * AbstractRegistry. (SPI, Prototype, ThreadSafe)
  */
 public abstract class AbstractRegistry implements Registry {
@@ -78,19 +90,39 @@ public abstract class AbstractRegistry implements Registry {
     private static final int MAX_RETRY_TIMES_SAVE_PROPERTIES = 3;
     // Log output
     protected final Logger logger = LoggerFactory.getLogger(getClass());
-    // Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
+
+    /**
+     * 本地注册信息缓存：为了缓解注册中心压力，我们会将注册/订阅的相关信息缓存到本地，即缓存到{@link #file}指向的文件，两者的数据是同步的
+     * <p>
+     * Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
+     */
     private final Properties properties = new Properties();
     // File cache timing writing
-    private final ExecutorService registryCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
-    // Is it synchronized to save the file
+    private final ExecutorService registryCacheExecutor =
+        Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
+
+    /**
+     * {@link #properties}变更后，是否使用达昂前线程同步更新{@link #file}：true/使用当前线程更新，false/向{@link #registryCacheExecutor}提交任务更新
+     * <p>
+     * Is it synchronized to save the file
+     */
     private boolean syncSaveFile;
     private final AtomicLong lastCacheChanged = new AtomicLong();
     private final AtomicInteger savePropertiesRetryTimes = new AtomicInteger();
     private final Set<URL> registered = new ConcurrentHashSet<>();
     private final ConcurrentMap<URL, Set<NotifyListener>> subscribed = new ConcurrentHashMap<>();
     private final ConcurrentMap<URL, Map<String, List<URL>>> notified = new ConcurrentHashMap<>();
+
+    /**
+     * 注册中心地址的URL，包含创建当前{@link Registry}对象的全部配置信息，是被{@link RegistryFactory}修改后的产物
+     */
     private URL registryUrl;
-    // Local disk cache file
+
+    /**
+     * 本地缓存的所在的文件，和{@link #properties}对应，会根据{@link #registryUrl}上的{@link Constants#REGISTRY__LOCAL_FILE_CACHE_ENABLED}参数来决定是否将数据缓存到文件中
+     * <p>
+     * Local disk cache file
+     */
     private File file;
 
     public AbstractRegistry(URL url) {
@@ -98,14 +130,18 @@ public abstract class AbstractRegistry implements Registry {
         if (url.getParameter(REGISTRY__LOCAL_FILE_CACHE_ENABLED, true)) {
             // Start file save timer
             syncSaveFile = url.getParameter(REGISTRY_FILESAVE_SYNC_KEY, false);
-            String defaultFilename = System.getProperty("user.home") + "/.dubbo/dubbo-registry-" + url.getParameter(APPLICATION_KEY) + "-" + url.getAddress().replaceAll(":", "-") + ".cache";
+            String defaultFilename =
+                System.getProperty("user.home") + "/.dubbo/dubbo-registry-" + url.getParameter(APPLICATION_KEY) + "-"
+                    + url.getAddress().replaceAll(":", "-") + ".cache";
             String filename = url.getParameter(FILE_KEY, defaultFilename);
             File file = null;
             if (ConfigUtils.isNotEmpty(filename)) {
                 file = new File(filename);
                 if (!file.exists() && file.getParentFile() != null && !file.getParentFile().exists()) {
                     if (!file.getParentFile().mkdirs()) {
-                        throw new IllegalArgumentException("Invalid registry cache file " + file + ", cause: Failed to create directory " + file.getParentFile() + "!");
+                        throw new IllegalArgumentException(
+                            "Invalid registry cache file " + file + ", cause: Failed to create directory "
+                                + file.getParentFile() + "!");
                     }
                 }
             }

@@ -21,6 +21,8 @@ import org.apache.dubbo.common.URL;
 import java.util.List;
 
 /**
+ * 注册服务接口，抽象了注册相关的基础行为
+ * <p>
  * RegistryService. (SPI, Prototype, ThreadSafe)
  *
  * @see org.apache.dubbo.registry.Registry
@@ -29,6 +31,8 @@ import java.util.List;
 public interface RegistryService {
 
     /**
+     * 注册数据：比如提供者服务、消费者地址、路由规则、复写规则或其他数据
+     *
      * Register data, such as : provider service, consumer address, route rule, override rule and other data.
      * <p>
      * Registering is required to support the contract:<br>
@@ -43,6 +47,8 @@ public interface RegistryService {
     void register(URL url);
 
     /**
+     * 对URL解除注册
+     * <p>
      * Unregister
      * <p>
      * Unregistering is required to support the contract:<br>
@@ -54,6 +60,8 @@ public interface RegistryService {
     void unregister(URL url);
 
     /**
+     * 订阅某个数据，并通过listener监听数据变化情况
+     * <p>
      * Subscribe to eligible registered data and automatically push when the registered data is changed.
      * <p>
      * Subscribing need to support contracts:<br>
@@ -71,6 +79,8 @@ public interface RegistryService {
     void subscribe(URL url, NotifyListener listener);
 
     /**
+     * 解除订阅
+     * <p>
      * Unsubscribe
      * <p>
      * Unsubscribing is required to support the contract:<br>
@@ -83,6 +93,8 @@ public interface RegistryService {
     void unsubscribe(URL url, NotifyListener listener);
 
     /**
+     * 查询符合URL条件的数据，并以URL集合的方式返回
+     * <p>
      * Query the registered data that matches the conditions. Corresponding to the push mode of the subscription, this is the pull mode and returns only one result.
      *
      * @param url Query condition, is not allowed to be empty, e.g. consumer://10.20.153.10/org.apache.dubbo.foo.BarService?version=1.0.0&application=kylin

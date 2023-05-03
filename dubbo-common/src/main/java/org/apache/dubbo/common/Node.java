@@ -17,11 +17,14 @@
 package org.apache.dubbo.common;
 
 /**
+ * 注册中心节点的抽象，可以表示provider节点、consumer节点，或单纯的注册中心节点
+ * <p>
  * Node. (API/SPI, Prototype, ThreadSafe)
  */
 public interface Node {
 
     /**
+     * 返回代表当前节点的URL
      * get url.
      *
      * @return url.
@@ -29,6 +32,7 @@ public interface Node {
     URL getUrl();
 
     /**
+     * 当前节点是否可用
      * is available.
      *
      * @return available.
@@ -36,6 +40,7 @@ public interface Node {
     boolean isAvailable();
 
     /**
+     * 销毁当前节点，并释放底层相关资源
      * destroy.
      */
     void destroy();
