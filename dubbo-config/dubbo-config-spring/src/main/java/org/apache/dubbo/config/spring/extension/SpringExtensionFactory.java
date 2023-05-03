@@ -63,11 +63,13 @@ public class SpringExtensionFactory implements ExtensionFactory {
     @SuppressWarnings("unchecked")
     public <T> T getExtension(Class<T> type, String name) {
 
+        // 类对象检查
         //SPI should be get from SpiExtensionFactory
         if (type.isInterface() && type.isAnnotationPresent(SPI.class)) {
             return null;
         }
 
+        // 从Spring上下文中获取对应的bean，如果有直接返回
         for (ApplicationContext context : CONTEXTS) {
             T bean = getOptionalBean(context, name, type);
             if (bean != null) {

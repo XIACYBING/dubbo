@@ -26,6 +26,8 @@ import java.util.List;
 
 /**
  * AdaptiveExtensionFactory
+ * <p>
+ * 适配器的ExtensionFactory，主要用于根据名称适配{@link SpiExtensionFactory}和{@link org.apache.dubbo.config.spring.extension.SpringExtensionFactory}
  */
 @Adaptive
 public class AdaptiveExtensionFactory implements ExtensionFactory {

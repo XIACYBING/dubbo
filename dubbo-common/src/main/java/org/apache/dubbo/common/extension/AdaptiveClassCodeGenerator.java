@@ -85,6 +85,8 @@ public class AdaptiveClassCodeGenerator {
 
     /**
      * generate and return class code
+     * <p>
+     * 通过拼接生成Adaptive相关的类的代码
      */
     public String generate() {
         // no need to generate adaptive class since there's no adaptive method found.

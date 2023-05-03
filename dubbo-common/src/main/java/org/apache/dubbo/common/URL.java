@@ -62,6 +62,11 @@ import static org.apache.dubbo.common.convert.Converter.convertIfPossible;
 import static org.apache.dubbo.common.utils.StringUtils.isBlank;
 
 /**
+ * Dubbo的配置总线：很多功能都是基于URL上解析出的参数去决定如何进行处理的
+ * <p>
+ * @see URLBuilder：辅助构造URL
+ * @see URLStrParser：将字符串解析成URL对象
+ * <p>
  * URL - Uniform Resource Locator (Immutable, ThreadSafe)
  * <p>
  * url example:
@@ -98,20 +103,43 @@ class URL implements Serializable {
 
     private static final long serialVersionUID = -1985165475234910535L;
 
+    /**
+     * URL协议：比如dubbo、grpc...
+     */
     protected String protocol;
 
+    /**
+     * 用户名，一般没有
+     */
     protected String username;
 
+    /**
+     * 用户密码：一般没有
+     */
     protected String password;
 
-    // by default, host to registry
+    /**
+     * by default, host to registry
+     * <p>
+     * 提供者/消费者的IP地址
+     */
     protected String host;
 
-    // by default, port to registry
+    /**
+     * by default, port to registry
+     * <p>
+     * 提供者或消费者的调用端口
+     */
     protected int port;
 
+    /**
+     * 提供者/消费者的路径：一般是接口全路径
+     */
     protected String path;
 
+    /**
+     * url上的参数集合
+     */
     private final Map<String, String> parameters;
 
     private final Map<String, Map<String, String>> methodParameters;

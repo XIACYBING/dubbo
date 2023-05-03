@@ -17,6 +17,7 @@
 package org.apache.dubbo.common.extension;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.constants.CommonConstants;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -43,7 +44,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})
 public @interface Activate {
+
     /**
+     * 表示当前注解修饰的实现类是在Provider端被激活还是在Consumer端被激活：
+     * 如果是{@link CommonConstants#PROVIDER}，代表注解修饰的类是在提供端被激活：A调用B方法，B是提供者，注解修饰的类会在B上被激活
+     * {@link CommonConstants#CONSUMER}，代表修饰注解的类在消费端被激活；A调用B方法，A是消费者，注解修饰的类会在A上被激活
+     * <p>
      * Activate the current extension when one of the groups matches. The group passed into
      * {@link ExtensionLoader#getActivateExtension(URL, String, String)} will be used for matching.
      *
@@ -53,6 +59,8 @@ public @interface Activate {
     String[] group() default {};
 
     /**
+     * 当前属性也是标识注解修饰的类是否要被激活的属性：当URL上出现{@link #value}中指定的key时，当前注解修饰的类才被激活
+     * <p>
      * Activate the current extension when the specified keys appear in the URL's parameters.
      * <p>
      * For example, given <code>@Activate("cache, validation")</code>, the current extension will be return only when
@@ -84,6 +92,8 @@ public @interface Activate {
     String[] after() default {};
 
     /**
+     * 当前注解修饰的类，在所有同扩展接口的实现类中的排序
+     * <p>
      * Absolute ordering info, optional
      *
      * @return absolute ordering info

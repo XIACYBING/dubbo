@@ -122,6 +122,8 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doRegister(URL url) {
         try {
+
+            // toUrlPath将URL转换为zookeeper上的路径，并通过DYNAMIC_KEY参数判断需要创建临时节点还是永久节点：true为临时节点
             zkClient.create(toUrlPath(url), url.getParameter(DYNAMIC_KEY, true));
         } catch (Throwable e) {
             throw new RpcException("Failed to register " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
@@ -166,13 +168,21 @@ public class ZookeeperRegistry extends FailbackRegistry {
             } else {
                 CountDownLatch latch = new CountDownLatch(1);
                 List<URL> urls = new ArrayList<>();
+
+                // 根据不同category进行订阅：一般是providers、configurators和routers，path是转换完成的zookeeper节点路径
                 for (String path : toCategoriesPath(url)) {
-                    ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
-                    ChildListener zkListener = listeners.computeIfAbsent(listener, k -> new RegistryChildListenerImpl(url, k, latch));
+                    ConcurrentMap<NotifyListener, ChildListener> listeners =
+                        zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
+                    ChildListener zkListener =
+                        listeners.computeIfAbsent(listener, k -> new RegistryChildListenerImpl(url, k, latch));
                     if (zkListener instanceof RegistryChildListenerImpl) {
-                        ((RegistryChildListenerImpl) zkListener).setLatch(latch);
+                        ((RegistryChildListenerImpl)zkListener).setLatch(latch);
                     }
+
+                    // 根据path创建永久节点
                     zkClient.create(path, false);
+
+                    // 注册监听器
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
                         urls.addAll(toUrlsWithEmpty(url, path, children));

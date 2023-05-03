@@ -24,6 +24,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
+ * 当前注解用于标记某个接口为SPI接口，可以通过{@link ExtensionLoader}的SPI机制加载实现类并使用，{@link #value()}中如果有值，该值就是默认的SPI实现类
+ * <p>
  * Marker for extension interface
  * <p/>
  * Changes on extension configuration file <br/>
