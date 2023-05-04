@@ -16,15 +16,6 @@
  */
 package org.apache.dubbo.remoting.zookeeper.curator;
 
-import org.apache.dubbo.common.URL;
-import org.apache.dubbo.common.logger.Logger;
-import org.apache.dubbo.common.logger.LoggerFactory;
-import org.apache.dubbo.remoting.zookeeper.ChildListener;
-import org.apache.dubbo.remoting.zookeeper.DataListener;
-import org.apache.dubbo.remoting.zookeeper.EventType;
-import org.apache.dubbo.remoting.zookeeper.StateListener;
-import org.apache.dubbo.remoting.zookeeper.AbstractZookeeperClient;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.api.CuratorWatcher;
@@ -34,6 +25,14 @@ import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.framework.state.ConnectionStateListener;
 import org.apache.curator.retry.RetryNTimes;
+import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.logger.Logger;
+import org.apache.dubbo.common.logger.LoggerFactory;
+import org.apache.dubbo.remoting.zookeeper.AbstractZookeeperClient;
+import org.apache.dubbo.remoting.zookeeper.ChildListener;
+import org.apache.dubbo.remoting.zookeeper.DataListener;
+import org.apache.dubbo.remoting.zookeeper.EventType;
+import org.apache.dubbo.remoting.zookeeper.StateListener;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.zookeeper.KeeperException.NodeExistsException;
@@ -62,21 +61,38 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
     public CuratorZookeeperClient(URL url) {
         super(url);
         try {
+
+            // 获取超时参数和session过期参数，单位都是毫秒，默认值分别为5000和60000
             int timeout = url.getParameter(TIMEOUT_KEY, DEFAULT_CONNECTION_TIMEOUT_MS);
             int sessionExpireMs = url.getParameter(ZK_SESSION_EXPIRE_KEY, DEFAULT_SESSION_TIMEOUT_MS);
-            CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
-                    .connectString(url.getBackupAddress())
-                    .retryPolicy(new RetryNTimes(1, 1000))
-                    .connectionTimeoutMs(timeout)
-                    .sessionTimeoutMs(sessionExpireMs);
+
+            // 设置参数到builder中
+            CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory
+                .builder()
+                .connectString(url.getBackupAddress())
+                .retryPolicy(new RetryNTimes(1, 1000))
+                .connectionTimeoutMs(timeout)
+                .sessionTimeoutMs(sessionExpireMs);
+
+            // 授权参数
             String authority = url.getAuthority();
             if (authority != null && authority.length() > 0) {
                 builder = builder.authorization("digest", authority.getBytes());
             }
+
+            // 构建客户端
             client = builder.build();
+
+            // 添加连接状态监听器
             client.getConnectionStateListenable().addListener(new CuratorConnectionStateListener(url));
+
+            // 启动
             client.start();
+
+            // 阻塞，直到连接成功，或超时
             boolean connected = client.blockUntilConnected(timeout, TimeUnit.MILLISECONDS);
+
+            // 超时则抛出异常
             if (!connected) {
                 throw new IllegalStateException("zookeeper not connected");
             }
@@ -229,16 +245,23 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
     @Override
     protected void addTargetDataListener(String path, CuratorZookeeperClient.NodeCacheListenerImpl nodeCacheListener, Executor executor) {
         try {
+
+            // 创建节点缓存
             NodeCache nodeCache = new NodeCache(client, path);
+
+            // 如果已存在，则不处理
             if (nodeCacheMap.putIfAbsent(path, nodeCache) != null) {
                 return;
             }
+
+            // 添加数据监听器
             if (executor == null) {
                 nodeCache.getListenable().addListener(nodeCacheListener);
             } else {
                 nodeCache.getListenable().addListener(nodeCacheListener, executor);
             }
 
+            // 启动NodeCache
             nodeCache.start();
         } catch (Exception e) {
             throw new IllegalStateException("Add nodeCache listener for path:" + path, e);
@@ -259,6 +282,9 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
         listener.unwatch();
     }
 
+    /**
+     * Apache Curator中关于{@link DataListener}映射的实现，监听节点数据变化的监听器
+     */
     static class NodeCacheListenerImpl implements NodeCacheListener {
 
         private CuratorFramework client;
@@ -287,10 +313,15 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
                 content = new String(childData.getData(), CHARSET);
                 eventType = EventType.NodeDataChanged;
             }
+
+            // 回调关联的dataListener，传递触发监听器的节点路径、节点内容和事件类型
             dataListener.dataChanged(path, content, eventType);
         }
     }
 
+    /**
+     * Apache Curator中关于{@link ChildListener}映射的实现，监听子节点变化的监听器
+     */
     static class CuratorWatcherImpl implements CuratorWatcher {
 
         private CuratorFramework client;
@@ -318,6 +349,7 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
                 return;
             }
 
+            // 回调关联的childListener，传递触发监听器的节点路径和子节点路径集合
             if (childListener != null) {
                 childListener.childChanged(path, client.getChildren().usingWatcher(this).forPath(path));
             }

@@ -22,6 +22,9 @@ import org.apache.dubbo.common.extension.SPI;
 
 import static org.apache.dubbo.common.extension.ExtensionLoader.getExtensionLoader;
 
+/**
+ * {@link ZookeeperTransporter}的主要作用就是通过{@link #connect(URL)}方法生产{@link ZookeeperClient}供外部使用
+ */
 @SPI
 public interface ZookeeperTransporter {
 

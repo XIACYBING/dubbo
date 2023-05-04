@@ -42,8 +42,8 @@ import static org.apache.dubbo.rpc.cluster.Constants.EXPORT_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.REFER_KEY;
 
 /**
- * 注册中心抽象类，提供{@link RegistryFactory#getRegistry(URL)}的通用实现，来保证不用注册中心的{@link Registry}在维护上的一致性，
- * 并留出{@link #createRegistry(URL)}让子类实现
+ * 注册中心抽象类，提供{@link RegistryFactory#getRegistry(URL)}的通用实现，并提供注册中心缓存{@link #REGISTRIES}的维护逻辑，
+ * 来保证注册中心的{@link Registry}在维护上的一致性，并留出{@link #createRegistry(URL)}让子类实现
  * <p>
  * AbstractRegistryFactory. (SPI, Singleton, ThreadSafe)
  *

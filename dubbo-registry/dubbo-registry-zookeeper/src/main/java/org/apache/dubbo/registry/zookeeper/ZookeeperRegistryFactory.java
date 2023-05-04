@@ -34,9 +34,9 @@ public class ZookeeperRegistryFactory extends AbstractRegistryFactory {
     }
 
     /**
+     * {@link #zookeeperTransporter}在实例化时通过构造函数{@link #ZookeeperRegistryFactory()}来赋值，不通过当前方法来自动注入
+     * <p>
      * Invisible injection of zookeeper client via IOC/SPI
-     *
-     * @param zookeeperTransporter
      */
     @DisableInject
     public void setZookeeperTransporter(ZookeeperTransporter zookeeperTransporter) {

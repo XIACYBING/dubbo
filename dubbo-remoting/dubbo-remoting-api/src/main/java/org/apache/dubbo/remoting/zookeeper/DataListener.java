@@ -18,6 +18,8 @@ package org.apache.dubbo.remoting.zookeeper;
 
 /**
  * 2019-02-26
+ * <p>
+ * Zookeeper节点数据变更监听器
  */
 public interface DataListener {
 
