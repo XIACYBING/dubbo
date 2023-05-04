@@ -41,7 +41,12 @@ public final class FailedUnsubscribedTask extends AbstractRetryTask {
 
     @Override
     protected void doRetry(URL url, FailbackRegistry registry, Timeout timeout) {
-        registry.unsubscribe(url, listener);
+
+        // 调用具体的doUnsubscribe方法执行取消订阅逻辑：需要注意的是，调用的并不是抽象unsubscribe方法
+        // 此处原来的调用是unsubscribe，我认为有问题，就改掉了，也提了相关的PR
+        registry.doUnsubscribe(url, listener);
+
+        // 移除可能存在的取消订阅失败重试任务
         registry.removeFailedUnsubscribedTask(url, listener);
     }
 }

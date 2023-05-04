@@ -41,7 +41,11 @@ public final class FailedSubscribedTask extends AbstractRetryTask {
 
     @Override
     protected void doRetry(URL url, FailbackRegistry registry, Timeout timeout) {
+
+        // 调用具体的doSubscribe方法执行订阅逻辑：需要注意的是，调用的并不是抽象subscribe方法
         registry.doSubscribe(url, listener);
+
+        // 移除可能存在的订阅失败重试任务
         registry.removeFailedSubscribedTask(url, listener);
     }
 }

@@ -34,7 +34,11 @@ public final class FailedUnregisteredTask extends AbstractRetryTask {
 
     @Override
     protected void doRetry(URL url, FailbackRegistry registry, Timeout timeout) {
+
+        // 调用具体的doUnregister方法执行取消注册逻辑：需要注意的是，调用的并不是抽象unregister方法
         registry.doUnregister(url);
+
+        // 移除可能存在的取消注册失败重试任务
         registry.removeFailedUnregisteredTask(url);
     }
 }

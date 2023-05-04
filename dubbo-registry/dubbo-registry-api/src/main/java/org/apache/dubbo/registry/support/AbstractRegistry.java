@@ -97,8 +97,8 @@ public abstract class AbstractRegistry implements Registry {
     /**
      * 本地注册信息缓存：为了缓解注册中心压力，我们会将注册/订阅的相关信息缓存到本地，即缓存到{@link #file}指向的文件，两者的数据是同步的
      * <p>
-     * {@link #properties}存储的数据为KV结构，大部分key为当前节点（当前服务）作为consumer的url，value为Provider的URL列表（这里的Provider是指providers
-     * 、routers和configurators）；但是也有一个特殊的key{@code registies}，对应的value是注册中心URL列表
+     * {@link #properties}存储的数据为KV结构，大部分key为当前节点（当前服务）作为consumer的url对应的serviceKey，value为Provider的URL列表（这里的Provider
+     * 是指providers、routers和configurators）；但是也有一个特殊的key{@code registies}，对应的value是注册中心URL列表
      * <p>
      * Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
      */
@@ -323,18 +323,22 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 获取当前URL缓存的相关URL数据：provider url、configurator url和router url
+     */
     public List<URL> getCacheUrls(URL url) {
         for (Map.Entry<Object, Object> entry : properties.entrySet()) {
-            String key = (String) entry.getKey();
-            String value = (String) entry.getValue();
-            if (StringUtils.isNotEmpty(key) && key.equals(url.getServiceKey())
-                    && (Character.isLetter(key.charAt(0)) || key.charAt(0) == '_')
-                    && StringUtils.isNotEmpty(value)) {
+            String key = (String)entry.getKey();
+            String value = (String)entry.getValue();
+            if (StringUtils.isNotEmpty(key) && key.equals(url.getServiceKey()) && (Character.isLetter(key.charAt(0))
+                || key.charAt(0) == '_') && StringUtils.isNotEmpty(value)) {
                 String[] arr = value.trim().split(URL_SPLIT);
                 List<URL> urls = new ArrayList<>();
                 for (String u : arr) {
                     urls.add(URL.valueOf(u));
                 }
+
+                // 匹配到后即返回
                 return urls;
             }
         }
@@ -494,6 +498,8 @@ public abstract class AbstractRegistry implements Registry {
     }
 
     /**
+     * 通知listener，当前url下，对应category以及相关url集合的变更，并保存到{@link #properties}和{@link #file}缓存中
+     * <p>
      * Notify changes from the Provider side.
      *
      * @param url      consumer side url
@@ -507,38 +513,58 @@ public abstract class AbstractRegistry implements Registry {
         if (listener == null) {
             throw new IllegalArgumentException("notify listener == null");
         }
-        if ((CollectionUtils.isEmpty(urls))
-                && !ANY_VALUE.equals(url.getServiceInterface())) {
+        if ((CollectionUtils.isEmpty(urls)) && !ANY_VALUE.equals(url.getServiceInterface())) {
             logger.warn("Ignore empty notify urls for subscribe url " + url);
             return;
         }
         if (logger.isInfoEnabled()) {
             logger.info("Notify urls for subscribe url " + url + ", urls: " + urls);
         }
+
+        // 将urls按照category参数进行分组：providers、routers和configurators
         // keep every provider's category.
         Map<String, List<URL>> result = new HashMap<>();
         for (URL u : urls) {
+
+            // url匹配：interface参数/path路径 -> category参数 -> enabled参数 -> group、version和classified参数
             if (UrlUtils.isMatch(url, u)) {
+
+                // 提取category参数，放入集合中
                 String category = u.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY);
                 List<URL> categoryList = result.computeIfAbsent(category, k -> new ArrayList<>());
                 categoryList.add(u);
             }
         }
+
+        // 如果分组结果为空，则不处理
         if (result.size() == 0) {
             return;
         }
+
+        // 获取url在notified集合中对应的url集合，也是按照category分组
         Map<String, List<URL>> categoryNotified = notified.computeIfAbsent(url, u -> new ConcurrentHashMap<>());
+
+        // 循环result分组，将result分组内容放入categoryNotified（即变相修改notified中的数据内容），并通知相关监听器
         for (Map.Entry<String, List<URL>> entry : result.entrySet()) {
             String category = entry.getKey();
             List<URL> categoryList = entry.getValue();
+
+            // 将当前category（providers、routers和configurators）和对应url放入categoryNotified集合中
             categoryNotified.put(category, categoryList);
+
+            // 调用监听器的notify方法，通知url变更
             listener.notify(categoryList);
+
+            // 更新url在本地缓存中的内容
             // We will update our cache file after each notification.
             // When our Registry has a subscribe failure due to network jitter, we can return at least the existing cache URL.
             saveProperties(url);
         }
     }
 
+    /**
+     * 更新url下，对应category和相关的url集合在{@link #properties}和{@link #file}中的缓存内容
+     */
     private void saveProperties(URL url) {
         if (file == null) {
             return;
@@ -546,6 +572,8 @@ public abstract class AbstractRegistry implements Registry {
 
         try {
             StringBuilder buf = new StringBuilder();
+
+            // 获取当前url对应的category及相应的url集合，不为空则拼接到buf中，通过URL_SEPARATOR连接
             Map<String, List<URL>> categoryNotified = notified.get(url);
             if (categoryNotified != null) {
                 for (List<URL> us : categoryNotified.values()) {
@@ -557,8 +585,14 @@ public abstract class AbstractRegistry implements Registry {
                     }
                 }
             }
+
+            // 根据serviceKey更新properties中的数据
             properties.setProperty(url.getServiceKey(), buf.toString());
+
+            // 更新版本
             long version = lastCacheChanged.incrementAndGet();
+
+            // 根据syncSaveFile标识，判断是同步还是异步更新file内容
             if (syncSaveFile) {
                 doSaveProperties(version);
             } else {
@@ -574,6 +608,8 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Destroy registry:" + getUrl());
         }
+
+        // 取消注册
         Set<URL> destroyRegistered = new HashSet<>(getRegistered());
         if (!destroyRegistered.isEmpty()) {
             for (URL url : new HashSet<>(destroyRegistered)) {
@@ -619,13 +655,19 @@ public abstract class AbstractRegistry implements Registry {
     }
 
     protected boolean acceptable(URL urlToRegistry) {
+
+        // 提取注册中心的accepts参数
         String pattern = registryUrl.getParameter(ACCEPTS_KEY);
+
+        // 如果为空，说明没要求，返回true即可
         if (StringUtils.isEmpty(pattern)) {
             return true;
         }
 
-        return Arrays.stream(COMMA_SPLIT_PATTERN.split(pattern))
-                .anyMatch(p -> p.equalsIgnoreCase(urlToRegistry.getProtocol()));
+        // 否则要求入参URL的protocol要符合accepts的模式
+        return Arrays
+            .stream(COMMA_SPLIT_PATTERN.split(pattern))
+            .anyMatch(p -> p.equalsIgnoreCase(urlToRegistry.getProtocol()));
     }
 
     @Override
