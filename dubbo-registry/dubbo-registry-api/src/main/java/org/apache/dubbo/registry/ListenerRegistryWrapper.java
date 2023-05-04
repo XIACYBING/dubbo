@@ -24,6 +24,10 @@ import org.apache.dubbo.common.utils.CollectionUtils;
 
 import java.util.List;
 
+/**
+ * {@link Registry}包装类，对于{@link #register}、{@link #unregister}、{@link #subscribe}和{@link #unsubscribe}行为进行监听，
+ * 并通知相关监听器{@link #listeners}
+ */
 public class ListenerRegistryWrapper implements Registry {
     private static final Logger logger = LoggerFactory.getLogger(ListenerRegistryWrapper.class);
 

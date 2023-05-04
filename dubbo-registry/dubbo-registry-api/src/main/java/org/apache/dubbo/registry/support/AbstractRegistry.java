@@ -17,6 +17,7 @@
 package org.apache.dubbo.registry.support;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.CollectionUtils;
@@ -78,6 +79,8 @@ import static org.apache.dubbo.registry.Constants.REGISTRY__LOCAL_FILE_CACHE_ENA
  * @see #lookup(URL)
  * @see #destroy()
  * <p>
+ * 并通过本地缓存{@link #properties}和{@link #file}为服务提供容错机制，保证服务的可靠性
+ * <p>
  * AbstractRegistry. (SPI, Prototype, ThreadSafe)
  */
 public abstract class AbstractRegistry implements Registry {
@@ -94,23 +97,52 @@ public abstract class AbstractRegistry implements Registry {
     /**
      * 本地注册信息缓存：为了缓解注册中心压力，我们会将注册/订阅的相关信息缓存到本地，即缓存到{@link #file}指向的文件，两者的数据是同步的
      * <p>
+     * {@link #properties}存储的数据为KV结构，大部分key为当前节点（当前服务）作为consumer的url，value为Provider的URL列表（这里的Provider是指providers
+     * 、routers和configurators）；但是也有一个特殊的key{@code registies}，对应的value是注册中心URL列表
+     * <p>
      * Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
      */
     private final Properties properties = new Properties();
-    // File cache timing writing
+
+    /**
+     * 一个单线程的固定线程池，如果{@link #properties}内容发生变更，并需要同步到{@link #file}，此时如果{@link #syncSaveFile}为false
+     * ，则提交同步任务{@link SaveProperties}到当前线程池，由线程池同步数据到{@link #file}中
+     * <p>
+     * File cache timing writing
+     */
     private final ExecutorService registryCacheExecutor =
         Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
 
     /**
-     * {@link #properties}变更后，是否使用达昂前线程同步更新{@link #file}：true/使用当前线程更新，false/向{@link #registryCacheExecutor}提交任务更新
+     * {@link #properties}变更后，是否使用当前前线程同步更新{@link #file}：true/使用当前线程更新，false/向{@link #registryCacheExecutor}提交任务更新
      * <p>
      * Is it synchronized to save the file
      */
     private boolean syncSaveFile;
+
+    /**
+     * {@link #properties}和{@link #file}的数据版本，因为每次更新数据都是全覆盖更新，且可能通过异步线程更新，所以需要进行版本控制，防止旧数据覆盖新数据
+     */
     private final AtomicLong lastCacheChanged = new AtomicLong();
     private final AtomicInteger savePropertiesRetryTimes = new AtomicInteger();
+
+    /**
+     * 当前节点要注册的URL：provider url、consumer url、configurator url或router url
+     */
     private final Set<URL> registered = new ConcurrentHashSet<>();
+
+    /**
+     * 订阅URL集合，key是被监听的URL，value是监听器集合
+     */
     private final ConcurrentMap<URL, Set<NotifyListener>> subscribed = new ConcurrentHashMap<>();
+
+    /**
+     * 通知集合
+     * key：当前节点的某个Consumer的URL（一个节点可以消费多个提供者）；
+     * value：分类数据集合
+     * key：分类，比如providers、routers和configurators
+     * value：对应分类的URL集合，比如providers的URL集合
+     */
     private final ConcurrentMap<URL, Map<String, List<URL>>> notified = new ConcurrentHashMap<>();
 
     /**
@@ -121,20 +153,35 @@ public abstract class AbstractRegistry implements Registry {
     /**
      * 本地缓存的所在的文件，和{@link #properties}对应，会根据{@link #registryUrl}上的{@link Constants#REGISTRY__LOCAL_FILE_CACHE_ENABLED}参数来决定是否将数据缓存到文件中
      * <p>
+     *
+     * @see Constants#REGISTRY__LOCAL_FILE_CACHE_ENABLED：是否开启文件缓存，显式配置为false时才不开启文件缓存
+     * @see Constants#REGISTRY_FILESAVE_SYNC_KEY：是否在{@link #properties}变更后，同步（同一线程）更新变更到{@link #file}
+     * @see CommonConstants#FILE_KEY：文件缓存地址，默认值是{/.dubbo/dubbo-registry-[当前应用名]-[当前Registry所在的IP地址].cache}
+     * <p>
      * Local disk cache file
      */
     private File file;
 
     public AbstractRegistry(URL url) {
+
+        // 设置注册中心URL
         setUrl(url);
+
+        // 只有显式配置file.cache为false时，才不开启文件缓存
         if (url.getParameter(REGISTRY__LOCAL_FILE_CACHE_ENABLED, true)) {
+
+            // 是否同步保存数据到文件中
             // Start file save timer
             syncSaveFile = url.getParameter(REGISTRY_FILESAVE_SYNC_KEY, false);
+
+            // 获取文件缓存位置
             String defaultFilename =
                 System.getProperty("user.home") + "/.dubbo/dubbo-registry-" + url.getParameter(APPLICATION_KEY) + "-"
                     + url.getAddress().replaceAll(":", "-") + ".cache";
             String filename = url.getParameter(FILE_KEY, defaultFilename);
             File file = null;
+
+            // 创建文件
             if (ConfigUtils.isNotEmpty(filename)) {
                 file = new File(filename);
                 if (!file.exists() && file.getParentFile() != null && !file.getParentFile().exists()) {
@@ -146,9 +193,13 @@ public abstract class AbstractRegistry implements Registry {
                 }
             }
             this.file = file;
+
+            // 加载文件数据到properties中，以便异常场景的数据正常恢复
             // When starting the subscription center,
             // we need to read the local cache file for future Registry fault tolerance processing.
             loadProperties();
+
+            // 通知当前注册中心的backupUrl
             notify(url.getBackupUrls());
         }
     }
@@ -246,6 +297,9 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 加载{@link #file}中的数据到{@link #properties}中
+     */
     private void loadProperties() {
         if (file != null && file.exists()) {
             InputStream in = null;
@@ -323,6 +377,8 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Register: " + url);
         }
+
+        // 添加url到已注册的集合中，实际的注册逻辑通过子类复写当前方法 + 调用当前方法来实现
         registered.add(url);
     }
 
@@ -334,6 +390,8 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Unregister: " + url);
         }
+
+        // 从已注册集合中移除对应URL，实际的解除注册通过子类复写当前方法 + 调用当前方法来实现
         registered.remove(url);
     }
 
@@ -348,6 +406,8 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Subscribe: " + url);
         }
+
+        // 将订阅关系添加到subscribe集合中，实际的订阅通过子类复写当前方法 + 调用当前方法来实现
         Set<NotifyListener> listeners = subscribed.computeIfAbsent(url, n -> new ConcurrentHashSet<>());
         listeners.add(listener);
     }
@@ -363,6 +423,8 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Unsubscribe: " + url);
         }
+
+        // 将订阅关系从subscribe集合中移除，实际的解除订阅逻辑通过子类复写当前方法 + 调用当前方法来实现
         Set<NotifyListener> listeners = subscribed.get(url);
         if (listeners != null) {
             listeners.remove(listener);
@@ -372,6 +434,9 @@ public abstract class AbstractRegistry implements Registry {
         notified.remove(url);
     }
 
+    /**
+     * 恢复：当前节点如果和注册中心因为某些原因断开（网络波动，注册中心宕机等...），需要通过当前方法恢复可能缺失的注册数据和订阅关系
+     */
     protected void recover() throws Exception {
         // register
         Set<URL> recoverRegistered = new HashSet<>(getRegistered());
@@ -379,6 +444,8 @@ public abstract class AbstractRegistry implements Registry {
             if (logger.isInfoEnabled()) {
                 logger.info("Recover register url " + recoverRegistered);
             }
+
+            // 循环集合，调用register方法，恢复注册数据
             for (URL url : recoverRegistered) {
                 register(url);
             }
@@ -389,6 +456,8 @@ public abstract class AbstractRegistry implements Registry {
             if (logger.isInfoEnabled()) {
                 logger.info("Recover subscribe url " + recoverSubscribed.keySet());
             }
+
+            // 循环集合，调用subscribe方法，恢复订阅关系
             for (Map.Entry<URL, Set<NotifyListener>> entry : recoverSubscribed.entrySet()) {
                 URL url = entry.getKey();
                 for (NotifyListener listener : entry.getValue()) {
@@ -406,6 +475,7 @@ public abstract class AbstractRegistry implements Registry {
         for (Map.Entry<URL, Set<NotifyListener>> entry : getSubscribed().entrySet()) {
             URL url = entry.getKey();
 
+            // 匹配url：interface/path、category、enable、group、version和classifier匹配
             if (!UrlUtils.isMatch(url, urls.get(0))) {
                 continue;
             }
@@ -507,6 +577,8 @@ public abstract class AbstractRegistry implements Registry {
         Set<URL> destroyRegistered = new HashSet<>(getRegistered());
         if (!destroyRegistered.isEmpty()) {
             for (URL url : new HashSet<>(destroyRegistered)) {
+
+                // 如果url上显式配置dynamic为false，则不处理，否则调用unregister方法，移除注册数据
                 if (url.getParameter(DYNAMIC_KEY, true)) {
                     try {
                         unregister(url);
@@ -514,11 +586,15 @@ public abstract class AbstractRegistry implements Registry {
                             logger.info("Destroy unregister url " + url);
                         }
                     } catch (Throwable t) {
-                        logger.warn("Failed to unregister url " + url + " to registry " + getUrl() + " on destroy, cause: " + t.getMessage(), t);
+                        logger.warn(
+                            "Failed to unregister url " + url + " to registry " + getUrl() + " on destroy, cause: "
+                                + t.getMessage(), t);
                     }
                 }
             }
         }
+
+        // 删除订阅关系
         Map<URL, Set<NotifyListener>> destroySubscribed = new HashMap<>(getSubscribed());
         if (!destroySubscribed.isEmpty()) {
             for (Map.Entry<URL, Set<NotifyListener>> entry : destroySubscribed.entrySet()) {
@@ -530,11 +606,15 @@ public abstract class AbstractRegistry implements Registry {
                             logger.info("Destroy unsubscribe url " + url);
                         }
                     } catch (Throwable t) {
-                        logger.warn("Failed to unsubscribe url " + url + " to registry " + getUrl() + " on destroy, cause: " + t.getMessage(), t);
+                        logger.warn(
+                            "Failed to unsubscribe url " + url + " to registry " + getUrl() + " on destroy, cause: "
+                                + t.getMessage(), t);
                     }
                 }
             }
         }
+
+        // 从注册中心工厂中移除当前注册中心
         AbstractRegistryFactory.removeDestroyedRegistry(this);
     }
 

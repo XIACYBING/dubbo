@@ -17,6 +17,7 @@
 package org.apache.dubbo.common.utils;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.constants.RemotingConstants;
 
 import java.util.ArrayList;
@@ -378,25 +379,34 @@ public class UrlUtils {
         }
     }
 
+    /**
+     * url匹配：interface参数/path路径 -> category参数 -> enabled参数 -> group、version和classified参数
+     * <p>
+     * 匹配中也有{@link CommonConstants#ANY_VALUE}，某些场景下{@link CommonConstants#ANY_VALUE}代表任意匹配
+     */
     public static boolean isMatch(URL consumerUrl, URL providerUrl) {
+
+        // interface参数/path路径匹配
         String consumerInterface = consumerUrl.getServiceInterface();
         String providerInterface = providerUrl.getServiceInterface();
         //FIXME accept providerUrl with '*' as interface name, after carefully thought about all possible scenarios I think it's ok to add this condition.
-        if (!(ANY_VALUE.equals(consumerInterface)
-                || ANY_VALUE.equals(providerInterface)
-                || StringUtils.isEquals(consumerInterface, providerInterface))) {
+        if (!(ANY_VALUE.equals(consumerInterface) || ANY_VALUE.equals(providerInterface) || StringUtils.isEquals(
+            consumerInterface, providerInterface))) {
             return false;
         }
 
+        // category参数匹配
         if (!isMatchCategory(providerUrl.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY),
-                consumerUrl.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY))) {
-            return false;
-        }
-        if (!providerUrl.getParameter(ENABLED_KEY, true)
-                && !ANY_VALUE.equals(consumerUrl.getParameter(ENABLED_KEY))) {
+            consumerUrl.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY))) {
             return false;
         }
 
+        // enabled参数匹配
+        if (!providerUrl.getParameter(ENABLED_KEY, true) && !ANY_VALUE.equals(consumerUrl.getParameter(ENABLED_KEY))) {
+            return false;
+        }
+
+        // group、version和classified参数匹配
         String consumerGroup = consumerUrl.getParameter(GROUP_KEY);
         String consumerVersion = consumerUrl.getParameter(VERSION_KEY);
         String consumerClassifier = consumerUrl.getParameter(CLASSIFIER_KEY, ANY_VALUE);

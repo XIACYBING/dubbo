@@ -22,6 +22,11 @@ import org.apache.dubbo.common.URL;
 /**
  * 继承{@link Node}和{@link RegistryService}，表示{@link Registry}是一个具有注册中心能力的节点，而{@link #reExportRegister(URL)}和{@link #reExportUnregister(URL)}都是委托给{@link RegistryService}去处理
  * <p>
+ * Registry只是实际的注册中心（比如Zookeeper）在客户端（provider/consumer）的一个映射，Registry通过和实际的注册中心进行实时信息同步，从而保证provider/consumer
+ * 的注册/订阅消息的一致性
+ * <p>
+ * 注册中心本身只是provider和consumer感知彼此状态变化的一种便捷途径，provider和consumer彼此实际的通讯交互过程对Registry来说是透明无感的
+ * <p>
  * Registry. (SPI, Prototype, ThreadSafe)
  *
  * @see org.apache.dubbo.registry.RegistryFactory#getRegistry(URL)

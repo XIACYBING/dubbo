@@ -22,6 +22,10 @@ import org.apache.dubbo.common.extension.ExtensionLoader;
 
 import java.util.Collections;
 
+/**
+ * {@link RegistryFactory}的包装类，会将{@link RegistryFactory}生成的{@link Registry}包装为{@link ListenerRegistryWrapper}
+ * ，以便注册数据有相关变化时通知到相关的监听器
+ */
 public class RegistryFactoryWrapper implements RegistryFactory {
     private RegistryFactory registryFactory;
 
