@@ -19,6 +19,16 @@ package org.apache.dubbo.remoting.buffer;
 
 import java.nio.ByteBuffer;
 
+/**
+ * {@link ChannelBuffer}的工具类
+ *
+ * @see #buffer：{@link HeapChannelBuffer}的工具方法
+ * @see #wrappedBuffer：{@link HeapChannelBuffer}的工具方法
+ * @see #dynamicBuffer：{@link DynamicChannelBuffer}的工具方法
+ * @see #directBuffer ：{@link ByteBufferBackedChannelBuffer}的工具方法
+ * @see #equals(ChannelBuffer, ChannelBuffer) ：比较两个{@link ChannelBuffer}是否相等
+ * @see #compare(ChannelBuffer, ChannelBuffer) ：排序两个{@link ChannelBuffer}
+ */
 public final class ChannelBuffers {
 
     public static final ChannelBuffer EMPTY_BUFFER = new HeapChannelBuffer(0);
@@ -84,23 +94,28 @@ public final class ChannelBuffers {
             return EMPTY_BUFFER;
         }
 
-        ChannelBuffer buffer = new ByteBufferBackedChannelBuffer(
-                ByteBuffer.allocateDirect(capacity));
+        ChannelBuffer buffer = new ByteBufferBackedChannelBuffer(ByteBuffer.allocateDirect(capacity));
         buffer.clear();
         return buffer;
     }
 
+    /**
+     * 比较两个{@link ChannelBuffer}是否相同，只需要比较前七个字节即可：在Dubbo的请求和响应中，前七个字节是协议头部分，
+     * 包含了请求或响应的消息类型、请求ID等信息。这些信息足以确定一个请求或响应的唯一性。因此，只需要比较前七个字节即可。
+     */
     public static boolean equals(ChannelBuffer bufferA, ChannelBuffer bufferB) {
         final int aLen = bufferA.readableBytes();
         if (aLen != bufferB.readableBytes()) {
             return false;
         }
 
+        // 最多比较七个字节 todo 为什么是取余数？如果aLen等于8，岂不是只比较第一个可读字节，这感觉不能作为两个ChannelBuffer相等的依据？
         final int byteCount = aLen & 7;
 
         int aIndex = bufferA.readerIndex();
         int bIndex = bufferB.readerIndex();
 
+        // 从第一个可读字节开始，比较byteCount次
         for (int i = byteCount; i > 0; i--) {
             if (bufferA.getByte(aIndex) != bufferB.getByte(bIndex)) {
                 return false;
@@ -130,6 +145,9 @@ public final class ChannelBuffers {
         return hashCode;
     }
 
+    /**
+     * 通过比较所有可读字节，得出排序结果
+     */
     public static int compare(ChannelBuffer bufferA, ChannelBuffer bufferB) {
         final int aLen = bufferA.readableBytes();
         final int bLen = bufferB.readableBytes();

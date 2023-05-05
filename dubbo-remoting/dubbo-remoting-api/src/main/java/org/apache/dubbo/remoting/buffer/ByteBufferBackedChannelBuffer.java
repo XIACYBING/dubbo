@@ -22,6 +22,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+/**
+ * {@link ChannelBuffer}中对于{@code Java NIO}{@link ByteBuffer}的包装实现，通过{@link ByteBuffer}的API完成相关操作
+ */
 public class ByteBufferBackedChannelBuffer extends AbstractChannelBuffer {
 
     private final ByteBuffer buffer;

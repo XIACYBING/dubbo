@@ -16,18 +16,23 @@
  */
 package org.apache.dubbo.remoting.transport.netty4;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.dubbo.common.utils.Assert;
 import org.apache.dubbo.remoting.buffer.ChannelBuffer;
 import org.apache.dubbo.remoting.buffer.ChannelBufferFactory;
 import org.apache.dubbo.remoting.buffer.ChannelBuffers;
-
-import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+/**
+ * {@link ChannelBuffer}中对于{@code Netty 4}{@link ByteBuf}的包装实现，通过{@link ByteBuf}的API完成相关操作
+ * <p>
+ * 因为{@link ByteBuf}内部已经维护了{@code readerIndex}、{@code writerIndex}、{@code markedReaderIndex}和{@code markedWriterIndex
+ * }，所以当前类直接继承{@link ChannelBuffer}
+ */
 public class NettyBackedChannelBuffer implements ChannelBuffer {
 
     private ByteBuf buffer;

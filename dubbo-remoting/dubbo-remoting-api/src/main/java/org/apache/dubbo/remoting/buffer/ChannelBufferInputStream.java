@@ -20,6 +20,9 @@ package org.apache.dubbo.remoting.buffer;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * 基于{@link ChannelBuffer}的字节输入流，通过{@link #buffer}、{@link #startIndex}和{@link #endIndex}完成输入流的相关操作
+ */
 public class ChannelBufferInputStream extends InputStream {
 
     private final ChannelBuffer buffer;

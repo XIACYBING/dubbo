@@ -199,7 +199,37 @@ import java.nio.ByteBuffer;
  * Please refer to {@link ChannelBufferInputStream} and {@link
  * ChannelBufferOutputStream}.
  *
+ * 通道数据维护的抽象接口
  *
+ * 读数据的相关方法（get系列方法不会影响索引，read系列方法会影响索引）：
+ * @see #getByte
+ * @see #getBytes
+ * @see #readByte
+ * @see #readBytes
+ *
+ * 写数据的相关方法（set系列方法不会影响索引，write系列方法会影响索引）：
+ * @see #setByte
+ * @see #setBytes
+ * @see #writeByte
+ * @see #writeBytes
+ *
+ * 操作指针的相关方法：
+ * @see #readerIndex()
+ * @see #writerIndex()
+ * @see #readerIndex(int)
+ * @see #writerIndex(int)
+ * @see #resetReaderIndex
+ * @see #resetWriterIndex
+ * @see #markReaderIndex
+ * @see #markWriterIndex
+ *
+ * 辅助方法：
+ * @see #capacity
+ * @see #clear
+ * @see #copy
+ * @see #factory
+ * @see #toByteBuffer
+ * ...
  */
 public interface ChannelBuffer extends Comparable<ChannelBuffer> {
 
@@ -295,6 +325,8 @@ public interface ChannelBuffer extends Comparable<ChannelBuffer> {
     byte getByte(int index);
 
     /**
+     * 从指定索引位{@code index}读取数据到{@code dst}，该操作不会影响{@code readerIndex}和{@code writerIndex}的值
+     * <p>
      * Transfers this buffer's data to the specified destination starting at the
      * specified absolute {@code index}. This method does not modify {@code
      * readerIndex} or {@code writerIndex} of this buffer
@@ -307,6 +339,9 @@ public interface ChannelBuffer extends Comparable<ChannelBuffer> {
     void getBytes(int index, byte[] dst);
 
     /**
+     * 从指定索引位{@code index}读取{@code length}长度的数据，从{@code dst}的{@code dstIndex}索引位开始写入，如果索引超出边界则抛出异常，
+     * 该操作不会影响{@code readerIndex}和{@code writerIndex}的值
+     *
      * Transfers this buffer's data to the specified destination starting at the
      * specified absolute {@code index}. This method does not modify {@code
      * readerIndex} or {@code writerIndex} of this buffer.
@@ -324,6 +359,8 @@ public interface ChannelBuffer extends Comparable<ChannelBuffer> {
     void getBytes(int index, byte[] dst, int dstIndex, int length);
 
     /**
+     * 从指定索引位{@code index}读取数据到{@code dst}，该操作不会影响{@code readerIndex}和{@code writerIndex}的值
+     *
      * Transfers this buffer's data to the specified destination starting at the
      * specified absolute {@code index} until the destination's position reaches
      * its limit. This method does not modify {@code readerIndex} or {@code

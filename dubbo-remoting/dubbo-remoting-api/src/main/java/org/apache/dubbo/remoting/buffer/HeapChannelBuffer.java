@@ -25,9 +25,14 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 
+/**
+ * 基于字节数据的{@link ChannelBuffer}实现，实现了get和set系列的方法
+ */
 public class HeapChannelBuffer extends AbstractChannelBuffer {
 
     /**
+     * 字节数组
+     * <p>
      * The underlying heap byte array that this buffer is wrapping.
      */
     protected final byte[] array;

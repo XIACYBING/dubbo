@@ -22,6 +22,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+/**
+ * 可以认为是其他{@link ChannelBuffer}的装饰器，为其他的{@link ChannelBuffer}提供动态扩容的功能；
+ * <p>
+ * 核心方法是{@link #ensureWritableBytes(int)}，在{@link #writeBytes}逻辑中，都会先通过{@link #ensureWritableBytes(int)}判断容量是否足够，
+ * 不够的话就按照两倍扩容，一直到容量足够为止
+ */
 public class DynamicChannelBuffer extends AbstractChannelBuffer {
 
     private final ChannelBufferFactory factory;
@@ -56,6 +62,8 @@ public class DynamicChannelBuffer extends AbstractChannelBuffer {
             newCapacity = capacity();
         }
         int minNewCapacity = writerIndex() + minWritableBytes;
+
+        // 每次新增两倍，直到大于minNewCapacity
         while (newCapacity < minNewCapacity) {
             newCapacity <<= 1;
         }

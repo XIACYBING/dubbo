@@ -18,6 +18,9 @@ package org.apache.dubbo.remoting.buffer;
 
 import java.nio.ByteBuffer;
 
+/**
+ * {@link ChannelBuffer}的工厂类，底层实现大多是基于{@link ChannelBuffers}工具类来实现相关生产逻辑
+ */
 public interface ChannelBufferFactory {
 
     ChannelBuffer getBuffer(int capacity);

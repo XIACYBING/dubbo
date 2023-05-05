@@ -22,14 +22,37 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+/**
+ * {@link ChannelBuffer}的抽象实现，主要提供数据read和write的基础操作（get和set由具体实现类实现），以及四个索引的维护：
+ *
+ * @see #readerIndex
+ * @see #writerIndex
+ * @see #markedReaderIndex
+ * @see #markedWriterIndex
+ * <p>
+ * {@link #readBytes}系列的方法一般通过{@link #getBytes}方法获取数据，然后操作相关索引
+ * {@link #writeBytes}系列的方法一般通过{@link #setBytes}方法写入数据，然后操作相关索引
+ */
 public abstract class AbstractChannelBuffer implements ChannelBuffer {
 
+    /**
+     * 通过{@link #readByte}和{@link #readBytes}进行数据读取时，会后移索引
+     */
     private int readerIndex;
 
+    /**
+     * 通过{@link #writeByte}和{@link #writeBytes}进行数据读取时，会后移索引
+     */
     private int writerIndex;
 
+    /**
+     * 标记读索引位，通过{@link #markReaderIndex()}标记，通过{@link #resetReaderIndex()}将{@link #readerIndex}恢复到标记位
+     */
     private int markedReaderIndex;
 
+    /**
+     * 标记写索引位，通过{@link #markWriterIndex()}标记，通过{@link #resetWriterIndex()}将{@link #writerIndex}恢复到标记位
+     */
     private int markedWriterIndex;
 
     @Override
