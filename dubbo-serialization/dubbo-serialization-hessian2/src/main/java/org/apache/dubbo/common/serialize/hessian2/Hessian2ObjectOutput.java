@@ -16,11 +16,10 @@
  */
 package org.apache.dubbo.common.serialize.hessian2;
 
+import com.alibaba.com.caucho.hessian.io.Hessian2Output;
 import org.apache.dubbo.common.serialize.Cleanable;
 import org.apache.dubbo.common.serialize.ObjectOutput;
 import org.apache.dubbo.common.serialize.hessian2.dubbo.Hessian2FactoryInitializer;
-
-import com.alibaba.com.caucho.hessian.io.Hessian2Output;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,6 +29,10 @@ import java.io.OutputStream;
  */
 public class Hessian2ObjectOutput implements ObjectOutput, Cleanable {
 
+    /**
+     * {@link Hessian2Output}的线程副本，在构造器方法{@link #Hessian2ObjectOutput(java.io.OutputStream)}中，会从{@link #OUTPUT_TL}中获取
+     * {@link Hessian2Output}绑定到{@link #mH2o}上
+     */
     private static ThreadLocal<Hessian2Output> OUTPUT_TL = ThreadLocal.withInitial(() -> {
         Hessian2Output h2o = new Hessian2Output(null);
         h2o.setSerializerFactory(Hessian2FactoryInitializer.getInstance().getSerializerFactory());

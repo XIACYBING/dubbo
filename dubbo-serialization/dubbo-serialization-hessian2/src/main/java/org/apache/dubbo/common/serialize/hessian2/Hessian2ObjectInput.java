@@ -16,11 +16,10 @@
  */
 package org.apache.dubbo.common.serialize.hessian2;
 
+import com.alibaba.com.caucho.hessian.io.Hessian2Input;
 import org.apache.dubbo.common.serialize.Cleanable;
 import org.apache.dubbo.common.serialize.ObjectInput;
 import org.apache.dubbo.common.serialize.hessian2.dubbo.Hessian2FactoryInitializer;
-
-import com.alibaba.com.caucho.hessian.io.Hessian2Input;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +30,10 @@ import java.lang.reflect.Type;
  */
 public class Hessian2ObjectInput implements ObjectInput, Cleanable {
 
+    /**
+     * {@link Hessian2Input}的线程副本，在构造器方法{@link #Hessian2ObjectInput(java.io.InputStream)}中，会从{@link #INPUT_TL}中获取
+     * {@link Hessian2Input}绑定到{@link #mH2i}上
+     */
     private static ThreadLocal<Hessian2Input> INPUT_TL = ThreadLocal.withInitial(() -> {
         Hessian2Input h2i = new Hessian2Input(null);
         h2i.setSerializerFactory(Hessian2FactoryInitializer.getInstance().getSerializerFactory());

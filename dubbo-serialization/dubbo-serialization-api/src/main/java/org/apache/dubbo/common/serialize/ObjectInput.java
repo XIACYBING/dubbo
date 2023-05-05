@@ -21,6 +21,10 @@ import java.lang.reflect.Type;
 import java.util.Map;
 
 /**
+ * 对象输入流，负责将输入的字节流转化为具体的对象，转换规则由框架提供，子类包装
+ * <p>
+ * 只要应用在：consumer获取响应，或provider接收到请求
+ * <p>
  * Object input interface.
  */
 public interface ObjectInput extends DataInput {

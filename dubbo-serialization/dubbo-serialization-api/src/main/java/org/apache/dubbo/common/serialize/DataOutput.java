@@ -19,6 +19,8 @@ package org.apache.dubbo.common.serialize;
 import java.io.IOException;
 
 /**
+ * 基础数据输出流接口：负责将基础数据类型写入字节流中
+ * <p>
  * Basic data type output interface.
  */
 public interface DataOutput {

@@ -20,6 +20,10 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * 对象输出流：负责将对象转化为字节流，转换规则由框架提供，子类包装
+ * <p>
+ * 主要应用在：consumer发起请求，或provider返回响应
+ * <p>
  * Object output interface.
  */
 public interface ObjectOutput extends DataOutput {
