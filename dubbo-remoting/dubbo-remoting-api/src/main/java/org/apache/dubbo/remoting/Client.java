@@ -19,6 +19,8 @@ package org.apache.dubbo.remoting;
 import org.apache.dubbo.common.Resetable;
 
 /**
+ * 客户端：将发起请求的{@link Endpoint}抽象为客户端/{@link Client}，可以关联以一个{@link Channel}
+ * <p>
  * Remoting Client. (API/SPI, Prototype, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Client%E2%80%93server_model">Client/Server</a>

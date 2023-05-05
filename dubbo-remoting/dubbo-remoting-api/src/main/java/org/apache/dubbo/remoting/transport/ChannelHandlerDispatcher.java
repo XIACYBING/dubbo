@@ -27,12 +27,18 @@ import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
+ * {@link ChannelHandler}调度器，同时维护多个{@link ChannelHandler}，其实就是在进行{@link ChannelHandler}的相关操作时，循环调用
+ * {@link #channelHandlers}中的每个{@link ChannelHandler}
+ * <p>
  * ChannelListenerDispatcher
  */
 public class ChannelHandlerDispatcher implements ChannelHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ChannelHandlerDispatcher.class);
 
+    /**
+     * {@link ChannelHandler}集合
+     */
     private final Collection<ChannelHandler> channelHandlers = new CopyOnWriteArraySet<ChannelHandler>();
 
     public ChannelHandlerDispatcher() {

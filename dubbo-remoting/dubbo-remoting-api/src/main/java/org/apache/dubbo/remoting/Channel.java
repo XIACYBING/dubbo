@@ -19,8 +19,16 @@ package org.apache.dubbo.remoting;
 import java.net.InetSocketAddress;
 
 /**
- * Channel. (API/SPI, Prototype, ThreadSafe)
+ * 通道：两个{@link Endpoint}之间的TCP连接抽象为通道/{@link Channel}
+ * <p>
+ * {@link Channel}可以附加KV属性，并通过以下方法管理：
  *
+ * @see #setAttribute(String, Object)
+ * @see #getAttribute(String)
+ * @see #removeAttribute(String)
+ * @see #hasAttribute(String)
+ * <p>
+ * Channel. (API/SPI, Prototype, ThreadSafe)
  * @see org.apache.dubbo.remoting.Client
  * @see RemotingServer#getChannels()
  * @see RemotingServer#getChannel(InetSocketAddress)
@@ -28,6 +36,8 @@ import java.net.InetSocketAddress;
 public interface Channel extends Endpoint {
 
     /**
+     * 获取远程{@link Endpoint}地址
+     * <p>
      * get remote address.
      *
      * @return remote address.
@@ -35,6 +45,8 @@ public interface Channel extends Endpoint {
     InetSocketAddress getRemoteAddress();
 
     /**
+     * 远程和本地{@link Endpoint}是否连接
+     * <p>
      * is connected.
      *
      * @return connected

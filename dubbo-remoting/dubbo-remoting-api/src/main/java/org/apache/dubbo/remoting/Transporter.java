@@ -21,6 +21,8 @@ import org.apache.dubbo.common.extension.Adaptive;
 import org.apache.dubbo.common.extension.SPI;
 
 /**
+ * {@link Transporter}：传输层的实现，外部通过{@link Transporters}进行使用
+ * <p>
  * Transporter. (SPI, Singleton, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Transport_Layer">Transport Layer</a>
@@ -32,6 +34,10 @@ import org.apache.dubbo.common.extension.SPI;
 public interface Transporter {
 
     /**
+     * 生成一个{@link RemotingServer}，作为provider等待consumer连接的server
+     * <p>
+     * 猜测：provider进行export时，会为每个接口提供者生成一个{@link RemotingServer}，等待consumer连接
+     * <p>
      * Bind a server.
      *
      * @param url     server url
@@ -44,6 +50,10 @@ public interface Transporter {
     RemotingServer bind(URL url, ChannelHandler handler) throws RemotingException;
 
     /**
+     * 生成一个{@link Client}，代表某个接口的consumer，连接对应provider所在的server
+     * <p>
+     * 猜测：consumer启动时，会根据consumer和provider的映射，生成一个{@link Client}，等待进行接口调用时发送数据
+     * <p>
      * Connect to a server.
      *
      * @param url     server url

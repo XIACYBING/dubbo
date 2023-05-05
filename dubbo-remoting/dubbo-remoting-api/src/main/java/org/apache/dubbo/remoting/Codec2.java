@@ -22,18 +22,30 @@ import org.apache.dubbo.remoting.buffer.ChannelBuffer;
 
 import java.io.IOException;
 
+/**
+ * 编解码接口：可实现字节数据和有意义消息之间的转换，或消息之间的互相转换
+ * <p>
+ * 会根据{@link org.apache.dubbo.common.URL}上的{@link Constants#CODEC_KEY}参数决定实际使用的{@link Codec2}实现类
+ */
 @SPI
 public interface Codec2 {
 
-    @Adaptive({Constants.CODEC_KEY})
+    @Adaptive( {Constants.CODEC_KEY})
     void encode(Channel channel, ChannelBuffer buffer, Object message) throws IOException;
 
-    @Adaptive({Constants.CODEC_KEY})
+    @Adaptive( {Constants.CODEC_KEY})
     Object decode(Channel channel, ChannelBuffer buffer) throws IOException;
 
-
+    /**
+     * 处理TCP传输时粘包和拆包的枚举
+     */
     enum DecodeResult {
-        NEED_MORE_INPUT, SKIP_SOME_INPUT
+
+        /**
+         * 当前读取到的数据不足以构成一个消息时，需要更多的数据
+         */
+        NEED_MORE_INPUT,
+        SKIP_SOME_INPUT
     }
 
 }

@@ -23,6 +23,8 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 
 /**
+ * 远程服务端：将接收请求的{@link Endpoint}抽象为远程服务端/{@link RemotingServer}，可以关联以多个{@link Channel}
+ * <p>
  * Remoting Server. (API/SPI, Prototype, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Client%E2%80%93server_model">Client/Server</a>
