@@ -38,6 +38,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 
 /**
+ * 限制的线程池，相比于普通线程池，当前线程池对于非核心线程，在创建后并不会自动销毁，因为销毁时间配置的是{@link Long#MAX_VALUE}
+ * <p>
  * Creates a thread pool that creates new threads as needed until limits reaches. This thread pool will not shrink
  * automatically.
  */

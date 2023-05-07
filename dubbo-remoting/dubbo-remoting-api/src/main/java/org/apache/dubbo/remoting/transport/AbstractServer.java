@@ -20,6 +20,7 @@ import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.extension.ExtensionLoader;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
+import org.apache.dubbo.common.threadpool.manager.DefaultExecutorRepository;
 import org.apache.dubbo.common.threadpool.manager.ExecutorRepository;
 import org.apache.dubbo.common.utils.ExecutorUtil;
 import org.apache.dubbo.common.utils.NetUtils;
@@ -45,33 +46,68 @@ public abstract class AbstractServer extends AbstractEndpoint implements Remotin
 
     protected static final String SERVER_THREAD_POOL_NAME = "DubboServerHandler";
     private static final Logger logger = LoggerFactory.getLogger(AbstractServer.class);
+
+    /**
+     * 当前服务器关联的线程池
+     */
     ExecutorService executor;
+
+    /**
+     * 服务器的本地地址，默认情况下和{@link #bindAddress}一致
+     */
     private InetSocketAddress localAddress;
+
+    /**
+     * 服务器绑定的地址，默认情况下和{@link #localAddress}一致
+     */
     private InetSocketAddress bindAddress;
+
+    /**
+     * 当前服务器能接受的最大连接数
+     */
     private int accepts;
 
-    private ExecutorRepository executorRepository = ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
+    /**
+     * 线程池管理仓库，默认实现是{@link DefaultExecutorRepository}
+     */
+    private ExecutorRepository executorRepository =
+        ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
 
     public AbstractServer(URL url, ChannelHandler handler) throws RemotingException {
         super(url, handler);
+
+        // 设置本地地址
         localAddress = getUrl().toInetSocketAddress();
 
+        // 从URL上获取要绑定的IP和端口
         String bindIp = getUrl().getParameter(Constants.BIND_IP_KEY, getUrl().getHost());
         int bindPort = getUrl().getParameter(Constants.BIND_PORT_KEY, getUrl().getPort());
+
+        // 如果配置了ANYHOST_KEY，或者要绑定的IP地址无效，则将地址设置为0.0.0.0
         if (url.getParameter(ANYHOST_KEY, false) || NetUtils.isInvalidLocalHost(bindIp)) {
             bindIp = ANYHOST_VALUE;
         }
+
+        // 设置绑定地址
         bindAddress = new InetSocketAddress(bindIp, bindPort);
+
+        // 获取可接受最大连接数，默认值为0，表示无限制
         this.accepts = url.getParameter(ACCEPTS_KEY, DEFAULT_ACCEPTS);
         try {
+
+            // 开始监听端口：交由具体子类进行实现
             doOpen();
             if (logger.isInfoEnabled()) {
-                logger.info("Start " + getClass().getSimpleName() + " bind " + getBindAddress() + ", export " + getLocalAddress());
+                logger.info("Start " + getClass().getSimpleName() + " bind " + getBindAddress() + ", export "
+                    + getLocalAddress());
             }
         } catch (Throwable t) {
-            throw new RemotingException(url.toInetSocketAddress(), null, "Failed to bind " + getClass().getSimpleName()
-                    + " on " + getLocalAddress() + ", cause: " + t.getMessage(), t);
+            throw new RemotingException(url.toInetSocketAddress(), null,
+                "Failed to bind " + getClass().getSimpleName() + " on " + getLocalAddress() + ", cause: "
+                    + t.getMessage(), t);
         }
+
+        // 根据URL生成具体的连接池实现
         executor = executorRepository.createExecutorIfAbsent(url);
     }
 

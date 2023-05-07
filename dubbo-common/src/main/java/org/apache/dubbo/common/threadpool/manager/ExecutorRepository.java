@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- *
+ * 线程池管理仓库，默认实现是{@link DefaultExecutorRepository}
  */
 @SPI("default")
 public interface ExecutorRepository {

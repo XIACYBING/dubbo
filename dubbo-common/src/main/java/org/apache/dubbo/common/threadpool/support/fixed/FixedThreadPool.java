@@ -35,6 +35,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 
 /**
+ * 固定线程池，{@link ThreadPool}的默认实现，核心线程数和最大线程数一致，默认线程数是200
+ * <p>
  * Creates a thread pool that reuses a fixed number of threads
  *
  * @see java.util.concurrent.Executors#newFixedThreadPool(int)
@@ -49,10 +51,13 @@ public class FixedThreadPool implements ThreadPool {
         int threads = url.getParameter(THREADS_KEY, DEFAULT_THREADS);
         int queues = url.getParameter(QUEUES_KEY, DEFAULT_QUEUES);
         return new ThreadPoolExecutor(threads, threads, 0, TimeUnit.MILLISECONDS,
-                queues == 0 ? new SynchronousQueue<Runnable>() :
-                        (queues < 0 ? new LinkedBlockingQueue<Runnable>()
-                                : new LinkedBlockingQueue<Runnable>(queues)),
-                new NamedInternalThreadFactory(name, true), new AbortPolicyWithReport(name, url));
+
+            // queues未配置时，使用SynchronousQueue作为任务队列，即提交任务的线程会阻塞到有其他线程来获取任务，才会完成提交
+            queues == 0 ? new SynchronousQueue<Runnable>()
+
+                // 否则根据queues的大小配置LinkedBlockingQueue队列大小，小于0时采用无参实现，也就是Integer.MAX.VALUE大小的队列
+                : (queues < 0 ? new LinkedBlockingQueue<Runnable>() : new LinkedBlockingQueue<Runnable>(queues)),
+            new NamedInternalThreadFactory(name, true), new AbortPolicyWithReport(name, url));
     }
 
 }

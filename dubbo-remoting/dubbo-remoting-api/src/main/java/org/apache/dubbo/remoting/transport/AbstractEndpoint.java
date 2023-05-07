@@ -29,40 +29,60 @@ import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.remoting.transport.codec.CodecAdapter;
 
 /**
+ * 基于{@link AbstractPeer}的再次抽象实现，并提供{@link Resetable#reset(URL)}的基础实现{@link #reset(URL)}
+ * <p>
  * AbstractEndpoint
  */
 public abstract class AbstractEndpoint extends AbstractPeer implements Resetable {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractEndpoint.class);
 
+    /**
+     * 基于{@link URL#protocol}获取对应的{@link Codec2}/{@link Codec}实现
+     */
     private Codec2 codec;
 
+    /**
+     * 根据{@link Constants#CONNECT_TIMEOUT_KEY}从URL上获取超时时间，单位是毫秒
+     */
     private int connectTimeout;
 
     public AbstractEndpoint(URL url, ChannelHandler handler) {
         super(url, handler);
         this.codec = getChannelCodec(url);
-        this.connectTimeout = url.getPositiveParameter(Constants.CONNECT_TIMEOUT_KEY, Constants.DEFAULT_CONNECT_TIMEOUT);
+        this.connectTimeout =
+            url.getPositiveParameter(Constants.CONNECT_TIMEOUT_KEY, Constants.DEFAULT_CONNECT_TIMEOUT);
     }
 
     protected static Codec2 getChannelCodec(URL url) {
-        String codecName = url.getProtocol(); // codec extension name must stay the same with protocol name
+
+        // codec 扩展的实现必须和protocol一致
+        // codec extension name must stay the same with protocol name
+        String codecName = url.getProtocol();
+
+        // 如果扩展存在，则返回对应的扩展
         if (ExtensionLoader.getExtensionLoader(Codec2.class).hasExtension(codecName)) {
             return ExtensionLoader.getExtensionLoader(Codec2.class).getExtension(codecName);
-        } else {
-            return new CodecAdapter(ExtensionLoader.getExtensionLoader(Codec.class)
-                    .getExtension(codecName));
+        }
+
+        // 如果扩展不存在，就从即将废弃的Codec扩展中获取需要的实现，并包装成CodecAdapter返回
+        else {
+            return new CodecAdapter(ExtensionLoader.getExtensionLoader(Codec.class).getExtension(codecName));
         }
     }
 
     @Override
     public void reset(URL url) {
+
+        // 如果当前端点已关闭，则抛出异常
         if (isClosed()) {
-            throw new IllegalStateException("Failed to reset parameters "
-                    + url + ", cause: Channel closed. channel: " + getLocalAddress());
+            throw new IllegalStateException(
+                "Failed to reset parameters " + url + ", cause: Channel closed. channel: " + getLocalAddress());
         }
 
         try {
+
+            // 重置超时时间
             if (url.hasParameter(Constants.CONNECT_TIMEOUT_KEY)) {
                 int t = url.getParameter(Constants.CONNECT_TIMEOUT_KEY, 0);
                 if (t > 0) {
@@ -74,6 +94,8 @@ public abstract class AbstractEndpoint extends AbstractPeer implements Resetable
         }
 
         try {
+
+            // 重置Codec2
             if (url.hasParameter(Constants.CODEC_KEY)) {
                 this.codec = getChannelCodec(url);
             }

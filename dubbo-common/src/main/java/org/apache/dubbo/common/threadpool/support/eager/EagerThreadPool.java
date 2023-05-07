@@ -36,6 +36,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 
 /**
+ * 当任务被提交时，如果线程池内线程数没有达到最大线程数时，优先创建工作线程来执行任务，而不是放入任务队列中（普通线程池是任务队列达到上线后，才会创建非核心线程来处理任务）
+ * <p>
  * EagerThreadPool
  * When the core threads are all in busy,
  * create new thread instead of putting task into blocking queue.
