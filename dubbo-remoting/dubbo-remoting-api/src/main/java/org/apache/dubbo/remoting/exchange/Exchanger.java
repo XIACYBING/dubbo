@@ -33,6 +33,8 @@ import org.apache.dubbo.remoting.exchange.support.header.HeaderExchanger;
 public interface Exchanger {
 
     /**
+     * 绑定对应的{@code url}上的IP，并生成一个Server返回
+     * <p>
      * bind.
      *
      * @param url

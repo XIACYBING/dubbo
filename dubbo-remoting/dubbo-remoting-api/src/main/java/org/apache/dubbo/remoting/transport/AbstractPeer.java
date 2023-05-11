@@ -22,9 +22,14 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.remoting.Endpoint;
 import org.apache.dubbo.remoting.RemotingException;
+import org.apache.dubbo.remoting.exchange.support.header.HeaderExchangeHandler;
+import org.apache.dubbo.remoting.exchange.support.header.HeaderExchanger;
+import org.apache.dubbo.remoting.exchange.support.header.HeartbeatHandler;
+import org.apache.dubbo.remoting.transport.dispatcher.all.AllChannelHandler;
 
 /**
- * 对{@link Endpoint}的部分方法提供一些默认抽象实现（主要是通过{@link #closing}和{@link #closed}管理端点状态），以及将{@link ChannelHandler}的实现方法委托给实例常量{@link #handler}
+ * 对{@link Endpoint}的部分方法提供一些默认抽象实现（主要是通过{@link #closing}和{@link #closed}管理端点状态），
+ * 以及将{@link ChannelHandler}的实现方法委托给实例常量{@link #handler}
  * <p>
  * AbstractPeer
  */
@@ -34,6 +39,13 @@ public abstract class AbstractPeer implements Endpoint, ChannelHandler {
      * 当前类也继承了{@link ChannelHandler}，但是自己并不进行相关处理，而是全部委托给{@link #handler}来进行处理
      * <p>
      * 继承当前抽象类的，都需要一个{@link ChannelHandler}来进行相关处理
+     * <p>
+     * 在{@link HeaderExchanger} -> {@link org.apache.dubbo.remoting.transport.netty4.NettyTransporter} ->
+     * {@link org.apache.dubbo.remoting.transport.netty4.NettyServer}的链路中，最终保存在{@link org.apache.dubbo.remoting.transport.netty4.NettyServer}中的
+     * {@link ChannelHandler}（即当前{@link #handler}）的层级如下：
+     * <p>
+     * {@link MultiMessageHandler} -> {@link HeartbeatHandler} -> {@link AllChannelHandler} -> {@link DecodeHandler} ->
+     * {@link HeaderExchangeHandler} -> handler（{@link HeaderExchanger#bind}入参的handler）
      */
     private final ChannelHandler handler;
 

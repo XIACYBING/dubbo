@@ -16,16 +16,15 @@
  */
 package org.apache.dubbo.remoting.transport.netty4;
 
-import org.apache.dubbo.common.URL;
-import org.apache.dubbo.remoting.Codec2;
-import org.apache.dubbo.remoting.buffer.ChannelBuffer;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToByteEncoder;
+import org.apache.dubbo.common.URL;
+import org.apache.dubbo.remoting.Codec2;
+import org.apache.dubbo.remoting.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +34,9 @@ import java.util.List;
  */
 final public class NettyCodecAdapter {
 
+    /**
+     * {@link #encoder}和{@link #decoder}都是内部类，相关编码处理都是通过{@link #codec}完成的
+     */
     private final ChannelHandler encoder = new InternalEncoder();
 
     private final ChannelHandler decoder = new InternalDecoder();
@@ -66,6 +68,8 @@ final public class NettyCodecAdapter {
             ChannelBuffer buffer = new NettyBackedChannelBuffer(out);
             Channel ch = ctx.channel();
             NettyChannel channel = NettyChannel.getOrAddChannel(ch, url, handler);
+
+            // 消息编码处理
             codec.encode(channel, buffer, msg);
         }
     }
@@ -75,26 +79,43 @@ final public class NettyCodecAdapter {
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf input, List<Object> out) throws Exception {
 
+            // 封装Netty的ByteBuf为ChannelBuffer
             ChannelBuffer message = new NettyBackedChannelBuffer(input);
 
+            // 获取当前的Channel
             NettyChannel channel = NettyChannel.getOrAddChannel(ctx.channel(), url, handler);
 
             // decode object.
             do {
+
+                // 记录当前readerIndex的位置，在有需要的时候重置readerIndex
                 int saveReaderIndex = message.readerIndex();
+
+                // 让codec进行解码
                 Object msg = codec.decode(channel, message);
+
+                // 接收到的数据不足一个消息的长度，返回NEED_MORE_INPUT，并重置readerIndex，等待下一个数据包到来后的处理
                 if (msg == Codec2.DecodeResult.NEED_MORE_INPUT) {
                     message.readerIndex(saveReaderIndex);
                     break;
-                } else {
-                    //is it possible to go here ?
+                }
+
+                /// 数据正常，处理数据
+                else {
+
+                    // 读取数据后，readerIndex没有变化，抛出异常
+                    // is it possible to go here ?
                     if (saveReaderIndex == message.readerIndex()) {
                         throw new IOException("Decode without read data.");
                     }
+
+                    // 正常的读取数据，将数据放入集合中，后续handler处理
                     if (msg != null) {
                         out.add(msg);
                     }
                 }
+
+                // 消息还是可读时循环
             } while (message.readable());
         }
     }

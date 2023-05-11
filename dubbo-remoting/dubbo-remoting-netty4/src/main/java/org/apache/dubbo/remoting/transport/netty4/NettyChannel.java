@@ -16,6 +16,8 @@
  */
 package org.apache.dubbo.remoting.transport.netty4;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
@@ -23,9 +25,6 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.transport.AbstractChannel;
 import org.apache.dubbo.remoting.utils.PayloadDropper;
-
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -42,17 +41,35 @@ import static org.apache.dubbo.common.constants.CommonConstants.TIMEOUT_KEY;
 final class NettyChannel extends AbstractChannel {
 
     private static final Logger logger = LoggerFactory.getLogger(NettyChannel.class);
+
     /**
+     * Netty的{@link Channel}和Dubbo的{@link NettyChannel}的映射，全局共享
+     * <p>
      * the cache for netty channel and dubbo channel
      */
-    private static final ConcurrentMap<Channel, NettyChannel> CHANNEL_MAP = new ConcurrentHashMap<Channel, NettyChannel>();
+    private static final ConcurrentMap<Channel, NettyChannel> CHANNEL_MAP =
+        new ConcurrentHashMap<Channel, NettyChannel>();
+
     /**
+     * 当前关联的Netty的Channel
+     * <p>
      * netty channel
      */
     private final Channel channel;
 
+    /**
+     * Channel上关联的属性，由以下方法维护：
+     *
+     * @see #hasAttribute(String)
+     * @see #getAttribute(String)
+     * @see #setAttribute(String, Object)
+     * @see #close()
+     */
     private final Map<String, Object> attributes = new ConcurrentHashMap<String, Object>();
 
+    /**
+     * 当前Channel是否存活的标识
+     */
     private final AtomicBoolean active = new AtomicBoolean(false);
 
     /**
@@ -166,7 +183,7 @@ final class NettyChannel extends AbstractChannel {
             // ChannelFuture不需要对外返回，可以通过其他方法从channel中获取服务提供者的响应数据
             ChannelFuture future = channel.writeAndFlush(message);
 
-            // 如果sent为true，则需要超时等待服务提供者的响应
+            // 如果sent为true，则需要超时等待服务提供者的响应，相当于同步获取响应
             if (sent) {
 
                 // 超时毫秒数，默认值为1000
@@ -188,12 +205,16 @@ final class NettyChannel extends AbstractChannel {
             removeChannelIfDisconnected(channel);
 
             // 包装异常
-            throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress() + ", cause: " + e.getMessage(), e);
+            throw new RemotingException(this,
+                "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress()
+                    + ", cause: " + e.getMessage(), e);
         }
 
-        // 请求失败时，抛出异常；sent为false时，不需要等待服务端响应回来，可以先返回给外围，此时success为true
+        // 请求失败时，抛出异常；
+        // sent为false时，不需要等待服务端响应回来，可以先返回给外围，此时success为true
         if (!success) {
-            throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress()
+            throw new RemotingException(this,
+                "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress()
                     + "in timeout(" + timeout + "ms) limit");
         }
     }

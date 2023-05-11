@@ -40,26 +40,58 @@ import static org.apache.dubbo.common.constants.CommonConstants.THREADPOOL_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 
 /**
+ * 抽象客户端连接建立的相关逻辑，并留下相关{@code do*}方法让子类实现：
+ *
+ * @see #doOpen()
+ * @see #doClose()
+ * @see #doConnect()
+ * @see #doDisConnect()
+ * <p>
  * AbstractClient
  */
 public abstract class AbstractClient extends AbstractEndpoint implements Client {
 
     protected static final String CLIENT_THREAD_POOL_NAME = "DubboClientHandler";
     private static final Logger logger = LoggerFactory.getLogger(AbstractClient.class);
+
+    /**
+     * 连接锁，在进行连接操作时要取锁才能操作
+     */
     private final Lock connectLock = new ReentrantLock();
+
+    /**
+     * 发送数据前，检查Client底层连接是否断开，并根据{@link #needReconnect}判断是否进行重连
+     */
     private final boolean needReconnect;
-    //issue-7054:Consumer's executor is sharing globally.
+
+    /**
+     * issue-7054:Consumer's executor is sharing globally.
+     * <p>
+     * 当前Client关联的线程池，所有消费者共享一个线程池
+     */
     protected volatile ExecutorService executor;
-    private ExecutorRepository executorRepository = ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
+
+    /**
+     * 线程池管理仓库
+     */
+    private ExecutorRepository executorRepository =
+        ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
 
     public AbstractClient(URL url, ChannelHandler handler) throws RemotingException {
+
+        // 调用父类构造方法，初始化codec、timeout、url和channelHandler相关内容
         super(url, handler);
+
+        // 获取是否重连参数
         // set default needReconnect true when channel is not connected
         needReconnect = url.getParameter(Constants.SEND_RECONNECT_KEY, true);
 
+        // 初始化线程池
         initExecutor(url);
 
         try {
+
+            // 调用子类具体实现，启动当前Client
             doOpen();
         } catch (Throwable t) {
             close();
@@ -69,10 +101,14 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
         }
 
         try {
+
+            // 创建连接，内部是通过子类的具体实现来创建连接的
             // connect.
             connect();
             if (logger.isInfoEnabled()) {
-                logger.info("Start " + getClass().getSimpleName() + " " + NetUtils.getLocalAddress() + " connect to the server " + getRemoteAddress());
+                logger.info(
+                    "Start " + getClass().getSimpleName() + " " + NetUtils.getLocalAddress() + " connect to the server "
+                        + getRemoteAddress());
             }
         } catch (RemotingException t) {
             if (url.getParameter(Constants.CHECK_KEY, true)) {
@@ -91,6 +127,8 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
     }
 
     private void initExecutor(URL url) {
+
+        // 所有消费URL共享同一个线程池
         //issue-7054:Consumer's executor is sharing globally, thread name not require provider ip.
         url = url.addParameter(THREAD_NAME_KEY, CLIENT_THREAD_POOL_NAME);
         url = url.addParameterIfAbsent(THREADPOOL_KEY, DEFAULT_CLIENT_THREADPOOL);

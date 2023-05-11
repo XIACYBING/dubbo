@@ -16,6 +16,10 @@
  */
 package org.apache.dubbo.remoting.transport.netty4;
 
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
+import io.netty.handler.timeout.IdleStateEvent;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
@@ -24,22 +28,21 @@ import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.transport.netty4.SslHandlerInitializer.HandshakeCompletionEvent;
 
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import io.netty.handler.timeout.IdleStateEvent;
-
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
+ * 继承{@link ChannelDuplexHandler}，同时处理Inbound和Outbound的数据
  * NettyServerHandler.
  */
 @io.netty.channel.ChannelHandler.Sharable
 public class NettyServerHandler extends ChannelDuplexHandler {
     private static final Logger logger = LoggerFactory.getLogger(NettyServerHandler.class);
+
     /**
+     * 缓存当前还存活的客户端Channel，通过{@link #channelActive}添加，{@link #channelInactive}移除
+     * <p>
      * the cache for alive worker channel.
      * <ip:port, dubbo channel>
      */
@@ -47,6 +50,11 @@ public class NettyServerHandler extends ChannelDuplexHandler {
 
     private final URL url;
 
+    /**
+     * 通过当前处理器处理所有的{@link Channel}的相关任务
+     * <p>
+     * 类型是具体的服务器，比如{@link NettyServer}，而{@link NettyServer}对于{@link ChannelHandler}相关方法的处理，也是委托给{@link NettyServer#handler}
+     */
     private final ChannelHandler handler;
 
     public NettyServerHandler(URL url, ChannelHandler handler) {
@@ -103,6 +111,8 @@ public class NettyServerHandler extends ChannelDuplexHandler {
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         super.write(ctx, msg, promise);
         NettyChannel channel = NettyChannel.getOrAddChannel(ctx.channel(), url, handler);
+
+        // 将发送的数据继续向下传递，并不影响消息的继续发送，只是触发sent()方法进行数据发送后的相关处理，这也是方法名称是动词过去式的原因
         handler.sent(channel, msg);
     }
 

@@ -25,6 +25,8 @@ import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.exchange.support.MultiMessage;
 
 /**
+ * 多重消息处理器
+ *
  * @see MultiMessage
  */
 public class MultiMessageHandler extends AbstractChannelHandlerDelegate {
@@ -38,8 +40,10 @@ public class MultiMessageHandler extends AbstractChannelHandlerDelegate {
     @SuppressWarnings("unchecked")
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+
+        // 多重消息，将接收到的多重消息安按顺序给内部ChannelHandler消费
         if (message instanceof MultiMessage) {
-            MultiMessage list = (MultiMessage) message;
+            MultiMessage list = (MultiMessage)message;
             for (Object obj : list) {
                 try {
                     handler.received(channel, obj);
@@ -48,7 +52,10 @@ public class MultiMessageHandler extends AbstractChannelHandlerDelegate {
                     handler.caught(channel, e);
                 }
             }
-        } else {
+        }
+
+        // 非多重消息，正常消费
+        else {
             handler.received(channel, message);
         }
     }

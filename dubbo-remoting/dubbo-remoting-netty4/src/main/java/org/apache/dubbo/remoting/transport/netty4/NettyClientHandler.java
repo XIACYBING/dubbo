@@ -16,6 +16,10 @@
  */
 package org.apache.dubbo.remoting.transport.netty4;
 
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
+import io.netty.handler.timeout.IdleStateEvent;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.Version;
 import org.apache.dubbo.common.logger.Logger;
@@ -24,11 +28,6 @@ import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.exchange.Request;
 import org.apache.dubbo.remoting.exchange.Response;
-
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import io.netty.handler.timeout.IdleStateEvent;
 
 import static org.apache.dubbo.common.constants.CommonConstants.HEARTBEAT_EVENT;
 
@@ -110,6 +109,8 @@ public class NettyClientHandler extends ChannelDuplexHandler {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+
+        // 接收到心跳事件：由io.netty.handler.timeout.IdleStateHandler.ReaderIdleTimeoutTask.run生成并发布
         // send heartbeat when read idle.
         if (evt instanceof IdleStateEvent) {
             try {
@@ -117,15 +118,24 @@ public class NettyClientHandler extends ChannelDuplexHandler {
                 if (logger.isDebugEnabled()) {
                     logger.debug("IdleStateEvent triggered, send heartbeat to channel " + channel);
                 }
+
+                // 生成心跳请求
                 Request req = new Request();
                 req.setVersion(Version.getProtocolVersion());
                 req.setTwoWay(true);
                 req.setEvent(HEARTBEAT_EVENT);
+
+                // 发送心跳请求
                 channel.send(req);
             } finally {
+
+                // 校验Channel状态，如果断开就移除
                 NettyChannel.removeChannelIfDisconnected(ctx.channel());
             }
-        } else {
+        }
+
+        // 非心跳事件，不处理，转发给父类处理
+        else {
             super.userEventTriggered(ctx, evt);
         }
     }

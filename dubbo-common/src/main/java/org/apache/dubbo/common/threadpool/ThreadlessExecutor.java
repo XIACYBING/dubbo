@@ -45,16 +45,26 @@ import java.util.concurrent.TimeoutException;
 public class ThreadlessExecutor extends AbstractExecutorService {
     private static final Logger logger = LoggerFactory.getLogger(ThreadlessExecutor.class.getName());
 
+    /**
+     * 被提交到当前队列的任务，可能是响应处理任务{@link org.apache.dubbo.remoting.transport.dispatcher.ChannelEventRunnable}，由
+     * {@link org.apache.dubbo.remoting.transport.dispatcher.WrappedChannelHandler}的实现类提交给当前线程池，然后请求线程执行任务处理
+     */
+    @SuppressWarnings("JavadocReference")
     private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
 
     private ExecutorService sharedExecutor;
 
     private CompletableFuture<?> waitingFuture;
 
+    /**
+     * 当前线程池的任务是否处理完成，会在{@link #waitAndDrain()}方法中被设置为{@code true}
+     */
     private boolean finished = false;
 
     /**
      * 任务是否等待处理：true/任务被提交到{@link #queue}中，直到{@link #waitAndDrain()}被调用，任务才会被处理；false/任务会直接被{@link #sharedExecutor}处理
+     * <p>
+     * 当前线程池一般和RPC调用绑定，线程池只会被执行一次，后续再次向当前线程池提交任务时，会交给{@link #sharedExecutor}
      */
     private volatile boolean waiting = true;
 
@@ -91,7 +101,8 @@ public class ThreadlessExecutor extends AbstractExecutorService {
          * of it is totally sequential.
          */
 
-        // 如果任务以完成，直接返回
+        // 如果任务已完成，直接返回
+        // finish为true代表和当前线程池绑定的RPC响应已经处理完成
         if (finished) {
             return;
         }
@@ -99,9 +110,9 @@ public class ThreadlessExecutor extends AbstractExecutorService {
         Runnable runnable;
         try {
 
-            // 获取一个runnable任务：可能会阻塞
+            // 获取一个runnable任务：可能会阻塞，一般是响应处理任务
             runnable = queue.take();
-        }catch (InterruptedException e){
+        } catch (InterruptedException e) {
 
             // 执行发生异常，后续提交的任务交给sharedExecutor处理
             waiting = false;
@@ -112,6 +123,7 @@ public class ThreadlessExecutor extends AbstractExecutorService {
         synchronized (lock) {
 
             // 当前正在执行任务，后续提交的任务交给sharedExecutor处理
+            // 执行的任务一般是响应任务
             waiting = false;
             runnable.run();
         }
@@ -157,6 +169,7 @@ public class ThreadlessExecutor extends AbstractExecutorService {
         runnable = new RunnableWrapper(runnable);
 
         // 提交任务：根据waiting状态进行不同的处理
+        // waiting为true一般代表waitAndDrain()已经被调用过了（即相关的RPC请求已经处理完成）
         synchronized (lock) {
             if (!waiting) {
                 sharedExecutor.execute(runnable);

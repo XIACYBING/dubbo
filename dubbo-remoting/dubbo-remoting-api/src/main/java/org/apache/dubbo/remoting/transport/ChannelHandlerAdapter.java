@@ -21,7 +21,7 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.RemotingException;
 
 /**
- * ChannelHandlerAdapter.
+ * ChannelHandlerAdapter：空实现，只有象征意义
  */
 public class ChannelHandlerAdapter implements ChannelHandler {
 

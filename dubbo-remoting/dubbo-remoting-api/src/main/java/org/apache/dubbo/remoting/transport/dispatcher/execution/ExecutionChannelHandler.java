@@ -31,6 +31,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
+ * 只有请求消息会被调度给线程池处理，其他方法还是由相关的IO线程处理（比如Netty的IO线程）
+ * <p>
+ * 响应消息关联的如果是{@link ThreadlessExecutor}，也会被提交到线程池中处理
+ * <p>
  * Only request message will be dispatched to thread pool. Other messages like response, connect, disconnect,
  * heartbeat will be directly executed by I/O thread.
  */
@@ -42,8 +46,11 @@ public class ExecutionChannelHandler extends WrappedChannelHandler {
 
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+
+        // 获取线程池
         ExecutorService executor = getPreferredExecutorService(message);
 
+        // 如果是请求，则提交给线程池
         if (message instanceof Request) {
             try {
                 executor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));
@@ -52,13 +59,19 @@ public class ExecutionChannelHandler extends WrappedChannelHandler {
                 // therefore the consumer side has to wait until gets timeout. This is a temporary solution to prevent
                 // this scenario from happening, but a better solution should be considered later.
                 if (t instanceof RejectedExecutionException) {
-                    sendFeedback(channel, (Request) message, t);
+                    sendFeedback(channel, (Request)message, t);
                 }
                 throw new ExecutionException(message, channel, getClass() + " error when process received event.", t);
             }
-        } else if (executor instanceof ThreadlessExecutor) {
+        }
+
+        // 如果线程池是ThreadlessExecutor，一般代表当前message是响应，提交给线程池处理就行
+        else if (executor instanceof ThreadlessExecutor) {
             executor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));
-        } else {
+        }
+
+        // 否则使用当前线程处理即可：一般是网络框架的IO线程
+        else {
             handler.received(channel, message);
         }
     }

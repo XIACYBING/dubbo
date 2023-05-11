@@ -29,6 +29,11 @@ import org.apache.dubbo.remoting.transport.dispatcher.WrappedChannelHandler;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * 消息调度器返回的默认的{@link WrappedChannelHandler}
+ * <p>
+ * 会将除了{@link #sent(Channel, Object)}方法外的其他逻辑提交到{@link #getExecutorService()}获取的线程池中执行
+ */
 public class AllChannelHandler extends WrappedChannelHandler {
 
     public AllChannelHandler(ChannelHandler handler, URL url) {
@@ -57,14 +62,21 @@ public class AllChannelHandler extends WrappedChannelHandler {
 
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+
+        // 由底层网络数据传输框架从二进制流中解析出message后，传输到当前ChannelHandler，再由Dispatcher生成的WrappedChannelHandler进行处理
+        // 比如当前的处理就是将请求提交到线程池中处理
+
+        // 获取线程池：如果message是响应且有关联的线程池，则使用对应线程池，否则使用共享线程池
         ExecutorService executor = getPreferredExecutorService(message);
         try {
+
+            // 向线程池中提交任务，可能提交到ThreadlessExecutor中，该线程池会等请求线程来处理当前提交的响应处理任务
             executor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));
         } catch (Throwable t) {
-        	if(message instanceof Request && t instanceof RejectedExecutionException){
-                sendFeedback(channel, (Request) message, t);
+            if (message instanceof Request && t instanceof RejectedExecutionException) {
+                sendFeedback(channel, (Request)message, t);
                 return;
-        	}
+            }
             throw new ExecutionException(message, channel, getClass() + " error when process received event .", t);
         }
     }

@@ -29,6 +29,9 @@ import org.apache.dubbo.remoting.transport.AbstractChannelHandlerDelegate;
 
 import static org.apache.dubbo.common.constants.CommonConstants.HEARTBEAT_EVENT;
 
+/**
+ * 专门处理心跳消息的处理器：接收到心跳请求时会生成响应并返回，接收到心跳响应时会打印日志
+ */
 public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
 
     private static final Logger logger = LoggerFactory.getLogger(HeartbeatHandler.class);
@@ -63,9 +66,15 @@ public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
 
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+
+        // 更新通道的最后一次读时间，可以作为最后一次读操作时间的判断依据
         setReadTimestamp(channel);
+
+        // 是心跳请求
         if (isHeartbeatRequest(message)) {
-            Request req = (Request) message;
+            Request req = (Request)message;
+
+            // 需要响应，生成心跳响应并发送出去
             if (req.isTwoWay()) {
                 Response res = new Response(req.getId(), req.getVersion());
                 res.setEvent(HEARTBEAT_EVENT);
@@ -74,19 +83,23 @@ public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
                     int heartbeat = channel.getUrl().getParameter(Constants.HEARTBEAT_KEY, 0);
                     if (logger.isDebugEnabled()) {
                         logger.debug("Received heartbeat from remote channel " + channel.getRemoteAddress()
-                                + ", cause: The channel has no data-transmission exceeds a heartbeat period"
-                                + (heartbeat > 0 ? ": " + heartbeat + "ms" : ""));
+                            + ", cause: The channel has no data-transmission exceeds a heartbeat period" + (
+                            heartbeat > 0 ? ": " + heartbeat + "ms" : ""));
                     }
                 }
             }
             return;
         }
+
+        // 是心跳响应，打印日志
         if (isHeartbeatResponse(message)) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Receive heartbeat response in thread " + Thread.currentThread().getName());
             }
             return;
         }
+
+        // 都不是，委托给内部的ChannelHandler处理
         handler.received(channel, message);
     }
 

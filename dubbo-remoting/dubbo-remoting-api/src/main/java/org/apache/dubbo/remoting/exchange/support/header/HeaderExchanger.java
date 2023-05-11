@@ -41,6 +41,11 @@ public class HeaderExchanger implements Exchanger {
 
     @Override
     public ExchangeServer bind(URL url, ExchangeHandler handler) throws RemotingException {
+
+        // 通过Transporter获取一个RemotingServer的实现类
+        // Netty链路下，返回出来的NettyServer中的handler变量，最终是一个多层包装的ChannelHandler，层次如下：
+        // MultiMessageHandler -> HeartbeatHandler -> AllChannelHandler -> DecodeHandler -> HeaderExchangeHandler ->
+        // handler
         return new HeaderExchangeServer(Transporters.bind(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
     }
 

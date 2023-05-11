@@ -31,6 +31,8 @@ import org.apache.dubbo.remoting.transport.codec.CodecAdapter;
 /**
  * 基于{@link AbstractPeer}的再次抽象实现，并提供{@link Resetable#reset(URL)}的基础实现{@link #reset(URL)}
  * <p>
+ * 通过{@link #codec}提供编码解码的相关能力
+ * <p>
  * AbstractEndpoint
  */
 public abstract class AbstractEndpoint extends AbstractPeer implements Resetable {

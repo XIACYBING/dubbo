@@ -52,7 +52,10 @@ import static org.apache.dubbo.remoting.transport.netty4.NettyEventLoopFactory.s
 public class NettyClient extends AbstractClient {
 
     private static final Logger logger = LoggerFactory.getLogger(NettyClient.class);
+
     /**
+     * 客户端工作线程组，所有客户端共用一组
+     * <p>
      * netty client bootstrap
      */
     private static final EventLoopGroup EVENT_LOOP_GROUP = eventLoopGroup(Constants.DEFAULT_IO_THREADS, "NettyClientWorker");
@@ -89,33 +92,53 @@ public class NettyClient extends AbstractClient {
      */
     @Override
     protected void doOpen() throws Throwable {
-        final NettyClientHandler nettyClientHandler = new NettyClientHandler(getUrl(), this);
-        bootstrap = new Bootstrap();
-        bootstrap.group(EVENT_LOOP_GROUP)
-                .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.TCP_NODELAY, true)
-                .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
-                //.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, getTimeout())
-                .channel(socketChannelClass());
 
+        // 创建NettyClientHandler，将传递给bootstrap，让Netty内部组件调用到当前NettyClient
+        // NettyClientHandler中，ChannelHandler的相关处理，都会委托给构造器中传入的ChannelHandler，也就是当前类
+        final NettyClientHandler nettyClientHandler = new NettyClientHandler(getUrl(), this);
+
+        // 创建客户端Bootstrap
+        bootstrap = new Bootstrap();
+
+        // 设置bootstrap相关参数
+        bootstrap
+            .group(EVENT_LOOP_GROUP)
+            .option(ChannelOption.SO_KEEPALIVE, true)
+            .option(ChannelOption.TCP_NODELAY, true)
+            .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
+            //.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, getTimeout())
+            .channel(socketChannelClass());
+
+        // 设置超时属性
         bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.max(DEFAULT_CONNECT_TIMEOUT, getConnectTimeout()));
+
+        // 设置Channel初始化器
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
 
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
+
+                // 心跳间隔时间，单位是毫秒
                 int heartbeatInterval = UrlUtils.getHeartbeat(getUrl());
 
+                // ssl处理
                 if (getUrl().getParameter(SSL_ENABLED_KEY, false)) {
-                    ch.pipeline().addLast("negotiation", SslHandlerInitializer.sslClientHandler(getUrl(), nettyClientHandler));
+                    ch
+                        .pipeline()
+                        .addLast("negotiation", SslHandlerInitializer.sslClientHandler(getUrl(), nettyClientHandler));
                 }
 
+                // 创建编码适配器，添加到ch的pipeline管道中，其实最终编码和解码相关方法会适配到getCodec返回的Codec2实例上
                 NettyCodecAdapter adapter = new NettyCodecAdapter(getCodec(), getUrl(), NettyClient.this);
                 ch.pipeline()//.addLast("logging",new LoggingHandler(LogLevel.INFO))//for debug
-                        .addLast("decoder", adapter.getDecoder())
-                        .addLast("encoder", adapter.getEncoder())
-                        .addLast("client-idle-handler", new IdleStateHandler(heartbeatInterval, 0, 0, MILLISECONDS))
-                        .addLast("handler", nettyClientHandler);
+                  .addLast("decoder", adapter.getDecoder())
+                  .addLast("encoder", adapter.getEncoder())
 
+                  // 客户端空闲处理器，空闲时会根据心跳间隔时间，生成心跳包，然后由NettyClientHandler.userEventTriggered处理发送到服务端，从而保持连接活性
+                  .addLast("client-idle-handler", new IdleStateHandler(heartbeatInterval, 0, 0, MILLISECONDS))
+                  .addLast("handler", nettyClientHandler);
+
+                // Socks5Proxy的处理
                 String socksProxyHost = ConfigUtils.getProperty(SOCKS_PROXY_HOST);
                 if(socksProxyHost != null) {
                     int socksProxyPort = Integer.parseInt(ConfigUtils.getProperty(SOCKS_PROXY_PORT, DEFAULT_SOCKS_PROXY_PORT));

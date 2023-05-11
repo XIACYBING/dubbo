@@ -112,12 +112,18 @@ public class DefaultExecutorRepository implements ExecutorRepository {
          * have Executor instances generated and stored.
          */
         if (executors == null) {
-            logger.warn("No available executors, this is not expected, framework should call createExecutorIfAbsent first " +
-                    "before coming to here.");
+            logger.warn(
+                "No available executors, this is not expected, framework should call createExecutorIfAbsent first "
+                    + "before coming to here.");
             return null;
         }
+
+        // 消费者的线程池使用同一个，key是Integer.MAX_VALUE
         //issue-7054:Consumer's executor is sharing globally, key=Integer.MAX_VALUE. Provider's executor is sharing by protocol.
-        Integer portKey = CONSUMER_SIDE.equalsIgnoreCase(url.getParameter(SIDE_KEY)) ? Integer.MAX_VALUE : url.getPort();
+        Integer portKey =
+            CONSUMER_SIDE.equalsIgnoreCase(url.getParameter(SIDE_KEY)) ? Integer.MAX_VALUE : url.getPort();
+
+        // 如果存在线程池，但是线程池正在关闭，则需要移除
         ExecutorService executor = executors.get(portKey);
         if (executor != null && (executor.isShutdown() || executor.isTerminated())) {
             executors.remove(portKey);
@@ -125,6 +131,8 @@ public class DefaultExecutorRepository implements ExecutorRepository {
             executor = null;
             logger.info("Executor for " + url + " is shutdown.");
         }
+
+        // 如果获取到的线程池为空，则使用共享线程池
         if (executor == null) {
             return SHARED_EXECUTOR;
         } else {

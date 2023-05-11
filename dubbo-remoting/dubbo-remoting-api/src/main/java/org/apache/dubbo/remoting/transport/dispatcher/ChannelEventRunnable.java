@@ -21,6 +21,9 @@ import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.ChannelHandler;
 
+/**
+ * {@link Channel}相关事件的执行任务，会被提交到线程池中处理
+ */
 public class ChannelEventRunnable implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(ChannelEventRunnable.class);
 
@@ -52,34 +55,43 @@ public class ChannelEventRunnable implements Runnable {
 
     @Override
     public void run() {
+
+        // 根据state状态，通过handler处理相关内容
+
+        // RECEIVED最经常，将其提取出来，以便提高效率
         if (state == ChannelState.RECEIVED) {
             try {
                 handler.received(channel, message);
             } catch (Exception e) {
-                logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel
-                        + ", message is " + message, e);
+                logger.warn(
+                    "ChannelEventRunnable handle " + state + " operation error, channel is " + channel + ", message is "
+                        + message, e);
             }
         } else {
+
+            // 根据state状态进行处理
             switch (state) {
-            case CONNECTED:
-                try {
-                    handler.connected(channel);
-                } catch (Exception e) {
-                    logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel, e);
-                }
-                break;
-            case DISCONNECTED:
-                try {
-                    handler.disconnected(channel);
-                } catch (Exception e) {
-                    logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel, e);
-                }
-                break;
-            case SENT:
-                try {
-                    handler.sent(channel, message);
-                } catch (Exception e) {
-                    logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel
+                case CONNECTED:
+                    try {
+                        handler.connected(channel);
+                    } catch (Exception e) {
+                        logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel,
+                            e);
+                    }
+                    break;
+                case DISCONNECTED:
+                    try {
+                        handler.disconnected(channel);
+                    } catch (Exception e) {
+                        logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel,
+                            e);
+                    }
+                    break;
+                case SENT:
+                    try {
+                        handler.sent(channel, message);
+                    } catch (Exception e) {
+                        logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel
                             + ", message is " + message, e);
                 }
                 break;

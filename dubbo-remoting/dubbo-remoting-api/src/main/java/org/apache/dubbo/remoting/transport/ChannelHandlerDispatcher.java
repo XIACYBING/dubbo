@@ -37,7 +37,7 @@ public class ChannelHandlerDispatcher implements ChannelHandler {
     private static final Logger logger = LoggerFactory.getLogger(ChannelHandlerDispatcher.class);
 
     /**
-     * {@link ChannelHandler}集合
+     * {@link ChannelHandler}集合，在进行每个{@link ChannelHandler}操作时，都会循环当前集合内的{@link ChannelHandler}，一起操作
      */
     private final Collection<ChannelHandler> channelHandlers = new CopyOnWriteArraySet<ChannelHandler>();
 

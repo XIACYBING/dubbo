@@ -115,7 +115,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
             // 否则需要处理返回值
             else {
 
-                // 根据提供者url和invocation获取线程池
+                // 根据提供者url和invocation获取线程池，线程池将用于响应的回调处理
                 ExecutorService executor = getCallbackExecutor(getUrl(), inv);
 
                 // 调用ExchangeClient发送请求，并在完成后将结果强转为AppResponse

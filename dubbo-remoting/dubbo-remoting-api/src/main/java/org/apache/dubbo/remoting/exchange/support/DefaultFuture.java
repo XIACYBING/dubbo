@@ -79,6 +79,12 @@ public class DefaultFuture extends CompletableFuture<Object> {
      */
     private Timeout timeoutCheckTask;
 
+    /**
+     * 线程池服务，可用来处理响应
+     * <p>
+     * 如果是{@link ThreadlessExecutor}，则只是将响应处理的任务提交到{@link ThreadlessExecutor#queue}中，由请求线程通过调用
+     * {@link ThreadlessExecutor#waitAndDrain()}执行响应处理的任务，进而获取响应结果
+     */
     private ExecutorService executor;
 
     public ExecutorService getExecutor() {
@@ -119,12 +125,14 @@ public class DefaultFuture extends CompletableFuture<Object> {
      */
     public static DefaultFuture newFuture(Channel channel, Request request, int timeout, ExecutorService executor) {
         final DefaultFuture future = new DefaultFuture(channel, request, timeout);
+
+        // 设置线程池，在接收到响应时，会根据id获取Future，进而获取线程池，然后将响应处理任务提交给线程池处理
         future.setExecutor(executor);
 
         // 如果是ThreadLess线程，关联future为waitingFuture
         // ThreadlessExecutor needs to hold the waiting future in case of circuit return.
         if (executor instanceof ThreadlessExecutor) {
-            ((ThreadlessExecutor) executor).setWaitingFuture(future);
+            ((ThreadlessExecutor)executor).setWaitingFuture(future);
         }
         // timeout check
         timeoutCheck(future);

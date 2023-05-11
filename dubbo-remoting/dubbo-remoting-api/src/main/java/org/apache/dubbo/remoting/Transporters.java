@@ -65,6 +65,8 @@ public class Transporters {
             // 生成ChannelHandler调度器
             handler = new ChannelHandlerDispatcher(handlers);
         }
+
+        // 获取Transport，绑定生成Server
         return getTransporter().bind(url, handler);
     }
 

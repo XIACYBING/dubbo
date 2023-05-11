@@ -28,6 +28,9 @@ import org.apache.dubbo.remoting.transport.dispatcher.WrappedChannelHandler;
 
 import java.util.concurrent.ExecutorService;
 
+/**
+ * 只会将接收到的响应提交到对应的{@link ThreadlessExecutor}中处理，其他任务都由调用方法的IO线程处理
+ */
 public class DirectChannelHandler extends WrappedChannelHandler {
 
     public DirectChannelHandler(ChannelHandler handler, URL url) {

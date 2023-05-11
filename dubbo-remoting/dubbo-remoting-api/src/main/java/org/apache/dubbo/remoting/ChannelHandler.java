@@ -46,6 +46,8 @@ public interface ChannelHandler {
 
     /**
      * on message sent.
+     * <p>
+     * todo 发送数据？
      *
      * @param channel channel.
      * @param message message.

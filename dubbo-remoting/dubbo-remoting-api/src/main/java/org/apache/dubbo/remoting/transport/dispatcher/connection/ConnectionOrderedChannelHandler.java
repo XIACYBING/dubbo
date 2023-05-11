@@ -34,26 +34,39 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_THREAD_NAME;
+import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 import static org.apache.dubbo.remoting.Constants.CONNECT_QUEUE_CAPACITY;
 import static org.apache.dubbo.remoting.Constants.CONNECT_QUEUE_WARNING_SIZE;
 import static org.apache.dubbo.remoting.Constants.DEFAULT_CONNECT_QUEUE_WARNING_SIZE;
 
+/**
+ * 会将连接相关的任务{@link #connected}和{@link #disconnected}提交给内部的线程池{@link #connectionExecutor}处理，而{@link #received}和
+ * {@link #caught}则会提交给获取到的线程池处理
+ */
 public class ConnectionOrderedChannelHandler extends WrappedChannelHandler {
 
+    /**
+     * 处理连接相关任务的线程池
+     */
     protected final ThreadPoolExecutor connectionExecutor;
+
+    /**
+     * 线程池{@link #connectionExecutor}等待队列中的任务数量如果超出{@link #queuewarninglimit}，则需要打印警告日志
+     */
     private final int queuewarninglimit;
 
     public ConnectionOrderedChannelHandler(ChannelHandler handler, URL url) {
         super(handler, url);
         String threadName = url.getParameter(THREAD_NAME_KEY, DEFAULT_THREAD_NAME);
-        connectionExecutor = new ThreadPoolExecutor(1, 1,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(url.getPositiveParameter(CONNECT_QUEUE_CAPACITY, Integer.MAX_VALUE)),
-                new NamedThreadFactory(threadName, true),
-                new AbortPolicyWithReport(threadName, url)
-        );  // FIXME There's no place to release connectionExecutor!
+
+        // 初始化线程池，只有一个线程
+        connectionExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+
+            // 队列长度由URL上的connect.queue.capacity参数决定
+            new LinkedBlockingQueue<Runnable>(url.getPositiveParameter(CONNECT_QUEUE_CAPACITY, Integer.MAX_VALUE)),
+            new NamedThreadFactory(threadName, true),
+            new AbortPolicyWithReport(threadName, url));  // FIXME There's no place to release connectionExecutor!
         queuewarninglimit = url.getParameter(CONNECT_QUEUE_WARNING_SIZE, DEFAULT_CONNECT_QUEUE_WARNING_SIZE);
     }
 
@@ -102,8 +115,12 @@ public class ConnectionOrderedChannelHandler extends WrappedChannelHandler {
     }
 
     private void checkQueueLength() {
+
+        // 如果线程池等待队列中的等待任务的数量已经大于queuewarninglimit，则需要打印警告
         if (connectionExecutor.getQueue().size() > queuewarninglimit) {
-            logger.warn(new IllegalThreadStateException("connectionordered channel handler `queue size: " + connectionExecutor.getQueue().size() + " exceed the warning limit number :" + queuewarninglimit));
+            logger.warn(new IllegalThreadStateException(
+                "connectionordered channel handler `queue size: " + connectionExecutor.getQueue().size()
+                    + " exceed the warning limit number :" + queuewarninglimit));
         }
     }
 }
