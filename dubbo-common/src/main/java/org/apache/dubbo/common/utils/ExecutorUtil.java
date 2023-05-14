@@ -46,6 +46,8 @@ public class ExecutorUtil {
     }
 
     /**
+     * 优雅关闭线程池，先shutdown，然后等待线程池任务执行完成，如果超时后线程池中的剩余任务还没执行完并关闭线程池，则向SHUTDOWN_EXECUTOR中提交一个任务，用来关闭线程池
+     * <p>
      * Use the shutdown pattern from:
      * https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html
      *
@@ -53,16 +55,22 @@ public class ExecutorUtil {
      * @param timeout  the timeout in milliseconds before termination
      */
     public static void gracefulShutdown(Executor executor, int timeout) {
+
+        // 非ExecutorService，或已关闭的，则不处理
         if (!(executor instanceof ExecutorService) || isTerminated(executor)) {
             return;
         }
-        final ExecutorService es = (ExecutorService) executor;
+        final ExecutorService es = (ExecutorService)executor;
+
+        // 调用shutdown，拒绝新任务（客户端的请求）被提交
         try {
             // Disable new tasks from being submitted
             es.shutdown();
         } catch (SecurityException | NullPointerException ex2) {
             return;
         }
+
+        // 等待线程池中的任务被执行完成
         try {
             // Wait a while for existing tasks to terminate
             if (!es.awaitTermination(timeout, TimeUnit.MILLISECONDS)) {
@@ -72,6 +80,8 @@ public class ExecutorUtil {
             es.shutdownNow();
             Thread.currentThread().interrupt();
         }
+
+        // 如果超时后，线程池中的任务还没执行完成，则向SHUTDOWN_EXECUTOR中提交一个shutdownHook，用来关闭线程池
         if (!isTerminated(es)) {
             newThreadToCloseExecutor(es);
         }
@@ -97,6 +107,11 @@ public class ExecutorUtil {
         }
     }
 
+    /**
+     * 向SHUTDOWN_EXECUTOR中提交一个任务，用来关闭线程池
+     *
+     * @param es 要关闭的线程池
+     */
     private static void newThreadToCloseExecutor(final ExecutorService es) {
         if (!isTerminated(es)) {
             SHUTDOWN_EXECUTOR.execute(new Runnable() {

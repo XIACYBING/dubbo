@@ -48,6 +48,13 @@ import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DECODE_IN_IO_THREAD_
 import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DEFAULT_DECODE_IN_IO_THREAD;
 
 /**
+ * 基于Dubbo协议，提供请求数据和响应数据的编码和解码能力，即对{@link RpcInvocation}和{@link Result}的编码和解码能力
+ *
+ * @see #encodeRequestData
+ * @see #decodeRequestData
+ * @see #encodeResponseData
+ * @see #decodeResponseData
+ * <p>
  * Dubbo codec.
  */
 public class DubboCodec extends ExchangeCodec {

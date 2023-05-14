@@ -37,6 +37,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_TIMEOUT;
 import static org.apache.dubbo.common.constants.CommonConstants.TIMEOUT_KEY;
 
 /**
+ * {@link HeaderExchangeChannel}是{@link Channel}的装饰器，实际的逻辑基于常量{@link #channel}实现
+ * <p>
  * ExchangeReceiver
  */
 final class HeaderExchangeChannel implements ExchangeChannel {
@@ -91,13 +93,16 @@ final class HeaderExchangeChannel implements ExchangeChannel {
     public void send(Object message, boolean sent) throws RemotingException {
         if (closed) {
             throw new RemotingException(this.getLocalAddress(), null,
-                    "Failed to send message " + message + ", cause: The channel " + this + " is closed!");
+                "Failed to send message " + message + ", cause: The channel " + this + " is closed!");
         }
-        if (message instanceof Request
-                || message instanceof Response
-                || message instanceof String) {
+
+        // 正常的请求/响应，或字符串（telnet）
+        if (message instanceof Request || message instanceof Response || message instanceof String) {
             channel.send(message, sent);
-        } else {
+        }
+
+        // todo 这是什么请求？单向的？（twoWay是false）
+        else {
             Request request = new Request();
             request.setVersion(Version.getProtocolVersion());
             request.setTwoWay(false);
@@ -137,7 +142,7 @@ final class HeaderExchangeChannel implements ExchangeChannel {
         Request req = new Request();
         req.setVersion(Version.getProtocolVersion());
 
-        // twoWay模式：双向通信，需要接收服务端的响应，在不设置oneWay属性时，twoWay是默认的通讯模式
+        // twoWay模式：双向通信，是否需要接收服务端的响应，在不设置oneWay属性时，twoWay是默认的通讯模式
         req.setTwoWay(true);
 
         // 外部传入的request作为data字段的值
@@ -174,8 +179,12 @@ final class HeaderExchangeChannel implements ExchangeChannel {
             return;
         }
         try {
+
+            // 关闭所有请求
             // graceful close
             DefaultFuture.closeChannel(channel);
+
+            // 关闭通道
             channel.close();
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
@@ -188,11 +197,16 @@ final class HeaderExchangeChannel implements ExchangeChannel {
         if (closed) {
             return;
         }
+
+        // 设置关闭标识
         closed = true;
+
+        // 超时毫秒大于0
         if (timeout > 0) {
             long start = System.currentTimeMillis();
-            while (DefaultFuture.hasFuture(channel)
-                    && System.currentTimeMillis() - start < timeout) {
+
+            // 如果当前通道还有请求未接收到响应，则循环等待，直至timeout耗尽
+            while (DefaultFuture.hasFuture(channel) && System.currentTimeMillis() - start < timeout) {
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
@@ -200,6 +214,8 @@ final class HeaderExchangeChannel implements ExchangeChannel {
                 }
             }
         }
+
+        // 执行关闭，对于未接收到响应的请求，会直接创建一个状态为连接关闭的Response给业务线程
         close();
     }
 

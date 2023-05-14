@@ -16,7 +16,11 @@
  */
 package org.apache.dubbo.remoting.exchange;
 
+import org.apache.dubbo.common.Version;
 import org.apache.dubbo.common.utils.StringUtils;
+import org.apache.dubbo.remoting.ChannelHandler;
+import org.apache.dubbo.remoting.Codec2;
+import org.apache.dubbo.remoting.exchange.support.header.HeaderExchangeHandler;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -24,21 +28,48 @@ import static org.apache.dubbo.common.constants.CommonConstants.HEARTBEAT_EVENT;
 
 /**
  * Request.
+ * <p>
+ * 对于接收到请求的一端，解码请求的位置是在对应的{@link Codec2}实现中
  */
 public class Request {
 
+    /**
+     * 静态常量字段：用于生成请求的自增id，递增到{@link Long#MAX_VALUE}后，会移除到{@link Long#MIN_VALUE}，让我们可以继续使用
+     */
     private static final AtomicLong INVOKE_ID = new AtomicLong(0);
 
+    /**
+     * 当前请求的id
+     */
     private final long mId;
 
+    /**
+     * 当前请求的请求协议版本号：{@link Version#getProtocolVersion()}
+     */
     private String mVersion;
 
+    /**
+     * 请求双向标识，如果为true，则代表Server在接收到请求后，需要给Client一个响应，false则不需要响应
+     */
     private boolean mTwoWay = true;
 
+    /**
+     * 事件标识：比如心跳请求/只读请求等，该标识会为true
+     */
     private boolean mEvent = false;
 
+    /**
+     * 解码异常的标识：Server接收到请求的二进制数据后，由{@link Codec2}将二进制数据解码成{@link Request}对象，如果解码环节遇到异常，则会设置当前标识为true
+     * ，并将具体的异常设置到{@link #mData}中然后让其他的{@link ChannelHandler}对该情况做进一步的处理（一般是由{@link HeaderExchangeHandler}
+     * 直接设置BAD_REQUEST响应，并返回）
+     */
     private boolean mBroken = false;
 
+    /**
+     * 请求的具体数据，也可能是解码时的异常
+     * <p>
+     * 类型一般是{@link org.apache.dubbo.rpc.RpcInvocation}
+     */
     private Object mData;
 
     public Request() {

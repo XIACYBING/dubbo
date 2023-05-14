@@ -24,6 +24,8 @@ import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.buffer.ChannelBuffer;
 import org.apache.dubbo.remoting.buffer.ChannelBufferInputStream;
 import org.apache.dubbo.remoting.buffer.ChannelBufferOutputStream;
+import org.apache.dubbo.remoting.exchange.codec.ExchangeCodec;
+import org.apache.dubbo.remoting.telnet.codec.TelnetCodec;
 import org.apache.dubbo.remoting.transport.AbstractCodec;
 
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
+ * 已不推荐的实现类，其子类{@link TelnetCodec}和{@link ExchangeCodec}已经完全覆盖了当前实现类
+ * <p>
  * Subclasses {@link org.apache.dubbo.remoting.telnet.codec.TelnetCodec} and {@link org.apache.dubbo.remoting.exchange.codec.ExchangeCodec}
  * both override all the methods declared in this class.
  */

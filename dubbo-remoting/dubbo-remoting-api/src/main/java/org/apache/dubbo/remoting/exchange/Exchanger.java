@@ -19,11 +19,19 @@ package org.apache.dubbo.remoting.exchange;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.extension.Adaptive;
 import org.apache.dubbo.common.extension.SPI;
+import org.apache.dubbo.remoting.Client;
 import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.remoting.RemotingException;
+import org.apache.dubbo.remoting.RemotingServer;
+import org.apache.dubbo.remoting.Transporter;
 import org.apache.dubbo.remoting.exchange.support.header.HeaderExchanger;
 
 /**
+ * 处理信息交换行为的信息交换器，会生成具体的{@link ExchangeServer}和{@link ExchangeClient}来处理信息交换行为
+ * <p>
+ * {@code exchange}层的{@link Exchanger}会在{@code transport}层的{@link Transporter}提供的{@link RemotingServer}和
+ * {@link Client}的基础上，添加{@code exchange}层自己的逻辑，包装成{@link ExchangeServer}和{@link ExchangeClient}
+ * <p>
  * Exchanger. (SPI, Singleton, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Message_Exchange_Pattern">Message Exchange Pattern</a>

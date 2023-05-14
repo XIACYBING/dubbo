@@ -23,6 +23,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 /**
+ * 针对{@link Channel}，在{@code exchange}层的网络连接，主要负责发送请求
+ * <p>
  * ExchangeChannel. (API/SPI, Prototype, ThreadSafe)
  */
 public interface ExchangeChannel extends Channel {

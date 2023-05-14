@@ -26,6 +26,8 @@ import org.apache.dubbo.remoting.exchange.Request;
 import static org.apache.dubbo.common.constants.CommonConstants.HEARTBEAT_EVENT;
 
 /**
+ * 心跳请求的定时任务，只负责发起请求，接收请求/响应，处理请求的，都是由{@link HeartbeatHandler}来处理
+ * <p>
  * HeartbeatTimerTask
  */
 public class HeartbeatTimerTask extends AbstractTimerTask {
@@ -42,10 +44,16 @@ public class HeartbeatTimerTask extends AbstractTimerTask {
     @Override
     protected void doTask(Channel channel) {
         try {
+
+            // 获取最后一次的读写时间
             Long lastRead = lastRead(channel);
             Long lastWrite = lastWrite(channel);
-            if ((lastRead != null && now() - lastRead > heartbeat)
-                    || (lastWrite != null && now() - lastWrite > heartbeat)) {
+
+            // 最后一次读操作或最后一次写操作距离当前时间超过heartbeat时间，则需要进行心跳处理
+            if ((lastRead != null && now() - lastRead > heartbeat) || (lastWrite != null
+                && now() - lastWrite > heartbeat)) {
+
+                // 发送心跳请求
                 Request req = new Request();
                 req.setVersion(Version.getProtocolVersion());
                 req.setTwoWay(true);
@@ -53,8 +61,8 @@ public class HeartbeatTimerTask extends AbstractTimerTask {
                 channel.send(req);
                 if (logger.isDebugEnabled()) {
                     logger.debug("Send heartbeat to remote channel " + channel.getRemoteAddress()
-                            + ", cause: The channel has no data-transmission exceeds a heartbeat period: "
-                            + heartbeat + "ms");
+                        + ", cause: The channel has no data-transmission exceeds a heartbeat period: " + heartbeat
+                        + "ms");
                 }
             }
         } catch (Throwable t) {

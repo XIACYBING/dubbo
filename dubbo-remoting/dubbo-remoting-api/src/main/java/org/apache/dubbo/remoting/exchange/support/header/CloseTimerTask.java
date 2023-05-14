@@ -28,6 +28,9 @@ public class CloseTimerTask extends AbstractTimerTask {
 
     private static final Logger logger = LoggerFactory.getLogger(CloseTimerTask.class);
 
+    /**
+     * 关闭连接的空闲时间，空闲超出该时间则关闭连接
+     */
     private final int idleTimeout;
 
     public CloseTimerTask(ChannelProvider channelProvider, Long heartbeatTimeoutTick, int idleTimeout) {
@@ -38,14 +41,19 @@ public class CloseTimerTask extends AbstractTimerTask {
     @Override
     protected void doTask(Channel channel) {
         try {
+
+            // 获取最后读写时间
             Long lastRead = lastRead(channel);
             Long lastWrite = lastWrite(channel);
+
+            // 获取当前时间
             Long now = now();
+
+            // 如果最后的读/写时间距离当前时间超出空闲时间上限，则关闭连接
             // check ping & pong at server
-            if ((lastRead != null && now - lastRead > idleTimeout)
-                    || (lastWrite != null && now - lastWrite > idleTimeout)) {
-                logger.warn("Close channel " + channel + ", because idleCheck timeout: "
-                        + idleTimeout + "ms");
+            if ((lastRead != null && now - lastRead > idleTimeout) || (lastWrite != null
+                && now - lastWrite > idleTimeout)) {
+                logger.warn("Close channel " + channel + ", because idleCheck timeout: " + idleTimeout + "ms");
                 channel.close();
             }
         } catch (Throwable t) {

@@ -152,15 +152,20 @@ public abstract class AbstractServer extends AbstractEndpoint implements Remotin
             logger.info("Close " + getClass().getSimpleName() + " bind " + getBindAddress() + ", export " + getLocalAddress());
         }
 
+        // 关闭线程池：抛弃未执行的任务，尝试中断正在执行的任务
         ExecutorUtil.shutdownNow(executor, 100);
 
         try {
+
+            // 调用父类的close，设置closed的状态
             super.close();
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
         }
 
         try {
+
+            // 执行子类实现的关闭逻辑
             doClose();
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
@@ -169,7 +174,11 @@ public abstract class AbstractServer extends AbstractEndpoint implements Remotin
 
     @Override
     public void close(int timeout) {
+
+        // 优雅关闭处理请求的连接池
         ExecutorUtil.gracefulShutdown(executor, timeout);
+
+        // 释放其他资源：会通过shutdownNow关闭线程池   todo 上面优雅关闭，下面shutdown关闭，两者是否互相冲突？
         close();
     }
 

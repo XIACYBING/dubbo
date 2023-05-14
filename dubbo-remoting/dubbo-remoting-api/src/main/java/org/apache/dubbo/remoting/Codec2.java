@@ -25,7 +25,14 @@ import java.io.IOException;
 /**
  * 编解码接口：可实现字节数据和有意义消息之间的转换，或消息之间的互相转换
  * <p>
- * 会根据{@link org.apache.dubbo.common.URL}上的{@link Constants#CODEC_KEY}参数决定实际使用的{@link Codec2}实现类
+ * 会根据{@link org.apache.dubbo.common.URL}上的{@link Constants#CODEC_KEY}参数决定实际使用的{@link Codec2}实现类，比如
+ * {@link org.apache.dubbo.rpc.protocol.dubbo.DubboCodec}会对Dubbo协议的请求进行编码和解码；
+ * <p>
+ * 而编码器和解码器会在{@link org.apache.dubbo.remoting.transport.netty4.NettyServer}构建{@link io.netty.bootstrap.ServerBootstrap}
+ * 时传递到管道中（key为{@code encoder}和{@code decoder}），然后在Netty的流程中生效
+ *
+ * @see org.apache.dubbo.remoting.transport.codec.TransportCodec
+ * @see org.apache.dubbo.remoting.exchange.codec.ExchangeCodec
  */
 @SPI
 public interface Codec2 {

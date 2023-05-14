@@ -44,6 +44,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
+ * {@link ExchangeCodec}再{@link TelnetCodec}的基础上，提供了处理协议头的能力
+ * <p>
  * ExchangeCodec.
  */
 public class ExchangeCodec extends TelnetCodec {
@@ -166,10 +168,16 @@ public class ExchangeCodec extends TelnetCodec {
                             // heart beat response data is always null;
                             data = null;
                         } else {
-                            data = decodeEventData(channel, CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);
+                            data = decodeEventData(channel,
+                                CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload),
+                                    proto), eventPayload);
                         }
-                    } else {
-                        data = decodeResponseData(channel, CodecSupport.deserialize(channel.getUrl(), is, proto), getRequestData(id));
+                    }
+
+                    // 解码响应数据
+                    else {
+                        data = decodeResponseData(channel, CodecSupport.deserialize(channel.getUrl(), is, proto),
+                            getRequestData(id));
                     }
                     res.setResult(data);
                 } else {
@@ -196,9 +204,14 @@ public class ExchangeCodec extends TelnetCodec {
                         // heart beat response data is always null;
                         data = null;
                     } else {
-                        data = decodeEventData(channel, CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);
+                        data = decodeEventData(channel,
+                            CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto),
+                            eventPayload);
                     }
-                } else {
+                }
+
+                // 解码请求数据
+                else {
                     data = decodeRequestData(channel, CodecSupport.deserialize(channel.getUrl(), is, proto));
                 }
                 req.setData(data);
@@ -248,14 +261,20 @@ public class ExchangeCodec extends TelnetCodec {
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
         ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
 
+        // 序列化心跳请求
         if (req.isHeartbeat()) {
             // heartbeat request data is always null
             bos.write(CodecSupport.getNullBytesOf(serialization));
         } else {
             ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
+
+            // 序列化事件请求的数据
             if (req.isEvent()) {
                 encodeEventData(channel, out, req.getData());
-            } else {
+            }
+
+            // 序列化正常请求的数据
+            else {
                 encodeRequestData(channel, out, req.getData(), req.getVersion());
             }
             out.flushBuffer();
@@ -307,7 +326,10 @@ public class ExchangeCodec extends TelnetCodec {
                     ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
                     if (res.isEvent()) {
                         encodeEventData(channel, out, res.getResult());
-                    } else {
+                    }
+
+                    // 编码响应数据
+                    else {
                         encodeResponseData(channel, out, res.getResult(), res.getVersion());
                     }
                     out.flushBuffer();

@@ -39,23 +39,29 @@ public class ReconnectTimerTask extends AbstractTimerTask {
     @Override
     protected void doTask(Channel channel) {
         try {
+
+            // 获取上次读时间
             Long lastRead = lastRead(channel);
             Long now = now();
 
+            // 连接断开，需要处理
             // Rely on reconnect timer to reconnect when AbstractClient.doConnect fails to init the connection
             if (!channel.isConnected()) {
                 try {
                     logger.info("Initial connection to " + channel);
-                    ((Client) channel).reconnect();
+                    ((Client)channel).reconnect();
                 } catch (Exception e) {
                     logger.error("Fail to connect to " + channel, e);
                 }
+            }
+
+            // 或者最后一次读时间距离现在超出空闲时间，需要进行一次重连，避免连接断开
             // check pong at client
-            } else if (lastRead != null && now - lastRead > idleTimeout) {
-                logger.warn("Reconnect to channel " + channel + ", because heartbeat read idle time out: "
-                        + idleTimeout + "ms");
+            else if (lastRead != null && now - lastRead > idleTimeout) {
+                logger.warn("Reconnect to channel " + channel + ", because heartbeat read idle time out: " + idleTimeout
+                    + "ms");
                 try {
-                    ((Client) channel).reconnect();
+                    ((Client)channel).reconnect();
                 } catch (Exception e) {
                     logger.error(channel + "reconnect failed during idle time.", e);
                 }

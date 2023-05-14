@@ -37,6 +37,8 @@ import static org.apache.dubbo.remoting.Constants.CHARSET_KEY;
 import static org.apache.dubbo.remoting.Constants.DEFAULT_CHARSET;
 
 /**
+ * {@link TelnetCodec}继承了{@link TransportCodec}基本的序列化和反序列化能力，同时还提供了对{@code telnet}命令的处理能力
+ * <p>
  * TelnetCodec
  */
 public class TelnetCodec extends TransportCodec {

@@ -17,7 +17,7 @@
 package org.apache.dubbo.remoting;
 
 import org.apache.dubbo.common.extension.SPI;
-
+import org.apache.dubbo.remoting.exchange.Request;
 
 /**
  * {@link ChannelHandler}是注册在{@link Channel}上的消息处理器
@@ -47,7 +47,7 @@ public interface ChannelHandler {
     /**
      * on message sent.
      * <p>
-     * todo 发送数据？
+     * {@link Request}通过{@link Endpoint#send}发送数据，发送完成后，响应的网络框架会对{@link #sent}方法进行回调
      *
      * @param channel channel.
      * @param message message.
@@ -56,6 +56,8 @@ public interface ChannelHandler {
 
     /**
      * on message received.
+     * <p>
+     * 接收到数据，比如provider接收到Request，或者Consumer接收到Response
      *
      * @param channel channel.
      * @param message message.

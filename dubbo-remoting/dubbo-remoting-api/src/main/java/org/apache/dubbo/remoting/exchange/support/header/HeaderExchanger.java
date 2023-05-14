@@ -27,8 +27,8 @@ import org.apache.dubbo.remoting.transport.DecodeHandler;
 
 /**
  * DefaultMessenger
- *
- *
+ * <p>
+ * 默认{@link Exchanger}实现，为入参的{@link ExchangeHandler}提供{@link DecodeHandler}和{@link HeaderExchangeHandler}的包装
  */
 public class HeaderExchanger implements Exchanger {
 

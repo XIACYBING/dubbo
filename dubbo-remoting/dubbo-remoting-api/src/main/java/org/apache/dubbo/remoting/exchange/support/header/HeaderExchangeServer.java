@@ -49,6 +49,7 @@ import static org.apache.dubbo.remoting.utils.UrlUtils.getHeartbeat;
 import static org.apache.dubbo.remoting.utils.UrlUtils.getIdleTimeout;
 
 /**
+ * {@code exchange}层的Server实现，是{@link RemotingServer}的装饰器，相关请求都交给它处理
  * ExchangeServerImpl
  */
 public class HeaderExchangeServer implements ExchangeServer {
@@ -58,9 +59,13 @@ public class HeaderExchangeServer implements ExchangeServer {
     private final RemotingServer server;
     private AtomicBoolean closed = new AtomicBoolean(false);
 
-    private static final HashedWheelTimer IDLE_CHECK_TIMER = new HashedWheelTimer(new NamedThreadFactory("dubbo-server-idleCheck", true), 1,
-            TimeUnit.SECONDS, TICKS_PER_WHEEL);
+    private static final HashedWheelTimer IDLE_CHECK_TIMER =
+        new HashedWheelTimer(new NamedThreadFactory("dubbo-server-idleCheck", true), 1, TimeUnit.SECONDS,
+            TICKS_PER_WHEEL);
 
+    /**
+     * 关闭连接的定时任务，主要用来关闭长时间空闲的连接
+     */
     private CloseTimerTask closeTimerTask;
 
     public HeaderExchangeServer(RemotingServer server) {
@@ -96,19 +101,35 @@ public class HeaderExchangeServer implements ExchangeServer {
 
     @Override
     public void close() {
+
+        // 设置关闭状态，取消关闭空闲客户端连接的定时任务
         doClose();
+
+        // 关闭transport层的server：调用RemotingServer的close方法，关闭连接
+        // AbstractPeer：设置closed字段为true
+        // NettyServer：释放相关的netty资源
         server.close();
     }
 
     @Override
     public void close(final int timeout) {
+
+        // 开始关闭：RemotingServer不再接收客户端连接
         startClose();
+
+        // 超时
         if (timeout > 0) {
             final long max = timeout;
             final long start = System.currentTimeMillis();
+
+            // 发送readOnly事件，告诉客户端当前服务端只能为只读（读取响应数据），不能再发起请求
+            // 客户端接收到该请求后，也会对对应的Channel附加channel.readonly属性，以供发起请求时的判断
             if (getUrl().getParameter(Constants.CHANNEL_SEND_READONLYEVENT_KEY, true)) {
                 sendChannelReadOnlyEvent();
             }
+
+            // todo 客户端接收到只读事件后会自行断开连接？在哪里处理的？
+            // 循环判断是否还有客户端维持着长连接，直到全部客户端连接断开，或超时
             while (isRunning() && System.currentTimeMillis() - start < max) {
                 try {
                     Thread.sleep(10);
@@ -117,21 +138,33 @@ public class HeaderExchangeServer implements ExchangeServer {
                 }
             }
         }
+
+        // 设置关闭状态，取消关闭空闲客户端连接的定时任务
         doClose();
+
+        // 关闭transport层的server：调用RemotingServer的close方法，关闭连接
+        // AbstractPeer：设置closed字段为true
+        // NettyServer：释放相关的netty资源
         server.close(timeout);
     }
 
     @Override
     public void startClose() {
+
+        // 设置RemotingServer的closing字段为true，表示对应服务器正在关闭，不再接收新的客户端连接
         server.startClose();
     }
 
+    /**
+     * 发送服务器只读事件
+     */
     private void sendChannelReadOnlyEvent() {
         Request request = new Request();
         request.setEvent(READONLY_EVENT);
         request.setTwoWay(false);
         request.setVersion(Version.getProtocolVersion());
 
+        // 循环当前所有的连接通道发送
         Collection<Channel> channels = getChannels();
         for (Channel channel : channels) {
             try {
@@ -144,10 +177,17 @@ public class HeaderExchangeServer implements ExchangeServer {
         }
     }
 
+    /**
+     * 设置关闭状态，取消关闭空闲客户端连接的定时任务
+     */
     private void doClose() {
+
+        // 设置closed字段为true，表示当前不接受请求或发送响应了
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+
+        // 取消关闭空闲客户端连接的定时任务
         cancelCloseTask();
     }
 

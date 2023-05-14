@@ -21,11 +21,19 @@ import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.ChannelHandler;
+import org.apache.dubbo.remoting.Codec2;
 import org.apache.dubbo.remoting.Decodeable;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.exchange.Request;
 import org.apache.dubbo.remoting.exchange.Response;
 
+/**
+ * 解码处理器，并非使用{@link Codec2}进行解码，而是如果{@code message}/{@link Request#mData}/{@link Response#mResult}继承了
+ * {@link Decodeable}，则对{@link Decodeable#decode()}方法进行调用
+ * <p>
+ * {@link DecodeHandler}是对请求体{@link Request#mData}和响应结果{@link Response#mResult}进行解码，而{@link Codec2}是对整个
+ * {@link Request}和{@link Response}进行编码和解码
+ */
 public class DecodeHandler extends AbstractChannelHandlerDelegate {
 
     private static final Logger log = LoggerFactory.getLogger(DecodeHandler.class);

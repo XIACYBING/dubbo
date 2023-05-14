@@ -30,10 +30,19 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractTimerTask implements TimerTask {
 
+    /**
+     * 获取{@link Channel}的工具
+     */
     private final ChannelProvider channelProvider;
 
+    /**
+     * 相对与任务提交时间的当前任务的延迟执行时间，单位为毫秒
+     */
     private final Long tick;
 
+    /**
+     * 任务是否已被取消
+     */
     protected volatile boolean cancel = false;
 
     AbstractTimerTask(ChannelProvider channelProvider, Long tick) {
@@ -65,27 +74,40 @@ public abstract class AbstractTimerTask implements TimerTask {
             throw new IllegalArgumentException();
         }
 
+        // 任务已取消则不处理
         if (cancel) {
             return;
         }
 
+        // 时间轮已取消的不处理
         Timer timer = timeout.timer();
         if (timer.isStop() || timeout.isCancelled()) {
             return;
         }
 
+        // 再次提交任务到时间轮
         timer.newTimeout(timeout.task(), tick, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void run(Timeout timeout) throws Exception {
+
+        // 获取所有要处理的通道
         Collection<Channel> c = channelProvider.getChannels();
+
+        // 循环通道
         for (Channel channel : c) {
+
+            // 通道已关闭的不处理
             if (channel.isClosed()) {
                 continue;
             }
+
+            // 执行任务
             doTask(channel);
         }
+
+        // 计算当前任务是否要继续加入时间轮中
         reput(timeout, tick);
     }
 

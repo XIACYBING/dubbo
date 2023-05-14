@@ -41,26 +41,61 @@ import static org.apache.dubbo.remoting.utils.UrlUtils.getHeartbeat;
 import static org.apache.dubbo.remoting.utils.UrlUtils.getIdleTimeout;
 
 /**
+ * {@link Client}的装饰器，主要为其装饰两个功能：1、维持长连接（心跳）；2、重连（定时检查）
+ *
+ * @see #startHeartBeatTask(URL)
+ * @see #startReconnectTask(URL)
+ * <p>
  * DefaultMessageClient
  */
 public class HeaderExchangeClient implements ExchangeClient {
 
+    /**
+     * 当前类对{@link Client}的所有操作都委托给当前{@link #client}处理
+     */
     private final Client client;
+
+    /**
+     * 当前类对{@link ExchangeChannel}的所有操作都委托给当前{@link #channel}处理
+     */
     private final ExchangeChannel channel;
 
-    private static final HashedWheelTimer IDLE_CHECK_TIMER = new HashedWheelTimer(
-            new NamedThreadFactory("dubbo-client-idleCheck", true), 1, TimeUnit.SECONDS, TICKS_PER_WHEEL);
+    /**
+     * 静态常量字段
+     * <p>
+     * 心跳请求和连接状态检查的时间轮
+     */
+    private static final HashedWheelTimer IDLE_CHECK_TIMER =
+        new HashedWheelTimer(new NamedThreadFactory("dubbo-client-idleCheck", true), 1, TimeUnit.SECONDS,
+            TICKS_PER_WHEEL);
+
+    /**
+     * 实例字段：心跳检查的定时任务
+     */
     private HeartbeatTimerTask heartBeatTimerTask;
+
+    /**
+     * 实例字段：重连检查的定时任务
+     */
     private ReconnectTimerTask reconnectTimerTask;
 
     public HeaderExchangeClient(Client client, boolean startTimer) {
         Assert.notNull(client, "Client can't be null");
+
+        // 封装transport层的Client对象
         this.client = client;
         this.channel = new HeaderExchangeChannel(client);
 
+        // 是否开启心跳定时任务和重连定时任务：Netty4的心跳检查和定时重连由io.netty.handler.timeout.IdleStateHandler自行处理
         if (startTimer) {
+
+            // 获取URL
             URL url = client.getUrl();
+
+            // 启动重连定时任务
             startReconnectTask(url);
+
+            // 启动心跳定时任务
             startHeartBeatTask(url);
         }
     }
@@ -134,15 +169,25 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     @Override
     public void close() {
+
+        // 关闭定时任务
         doClose();
+
+        // 关闭ExchangeChannel通道
         channel.close();
     }
 
     @Override
     public void close(int timeout) {
+
+        // 通知关闭
         // Mark the client into the closure process
         startClose();
+
+        // 关闭定时任务
         doClose();
+
+        // 关闭ExchangeChannel通道，有超时时间，主要用来等待未响应的请求的响应
         channel.close(timeout);
     }
 
@@ -189,25 +234,47 @@ public class HeaderExchangeClient implements ExchangeClient {
     }
 
     private void startHeartBeatTask(URL url) {
+
+        // 针对无法自行处理idle情况的client，启动心跳检查任务
+        // 像NettyClient就可以通过IdleStateHandler触发心跳请求，然后依靠NettyClientHandler来发送心跳请求
         if (!client.canHandleIdle()) {
+
+            // ChannelProvider，返回当前类
             AbstractTimerTask.ChannelProvider cp = () -> Collections.singletonList(HeaderExchangeClient.this);
+
+            // 获取心跳检查时间，单位是毫秒，默认值是60秒，每60秒发送一次心跳检查
             int heartbeat = getHeartbeat(url);
             long heartbeatTick = calculateLeastDuration(heartbeat);
+
+            // 创建心跳检查任务
             this.heartBeatTimerTask = new HeartbeatTimerTask(cp, heartbeatTick, heartbeat);
+
+            // 提交任务到时间轮中
             IDLE_CHECK_TIMER.newTimeout(heartBeatTimerTask, heartbeatTick, TimeUnit.MILLISECONDS);
         }
     }
 
     private void startReconnectTask(URL url) {
+
+        // 判断是否需要处理重连
         if (shouldReconnect(url)) {
             AbstractTimerTask.ChannelProvider cp = () -> Collections.singletonList(HeaderExchangeClient.this);
+
+            // 获取空闲时间，单位为毫秒，超出空闲时间后就需要检查连接状态
             int idleTimeout = getIdleTimeout(url);
             long heartbeatTimeoutTick = calculateLeastDuration(idleTimeout);
+
+            // 创建重连任务
             this.reconnectTimerTask = new ReconnectTimerTask(cp, heartbeatTimeoutTick, idleTimeout);
+
+            // 向时间轮提交重连任务
             IDLE_CHECK_TIMER.newTimeout(reconnectTimerTask, heartbeatTimeoutTick, TimeUnit.MILLISECONDS);
         }
     }
 
+    /**
+     * 关闭心跳检查和重连的定时任务
+     */
     private void doClose() {
         if (heartBeatTimerTask != null) {
             heartBeatTimerTask.cancel();

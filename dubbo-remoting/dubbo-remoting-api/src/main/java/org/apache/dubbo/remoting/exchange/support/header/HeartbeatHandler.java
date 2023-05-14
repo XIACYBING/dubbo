@@ -31,13 +31,27 @@ import static org.apache.dubbo.common.constants.CommonConstants.HEARTBEAT_EVENT;
 
 /**
  * 专门处理心跳消息的处理器：接收到心跳请求时会生成响应并返回，接收到心跳响应时会打印日志
+ * <p>
+ * 也会记录读时间{@link #KEY_READ_TIMESTAMP}和写时间{@link #KEY_WRITE_TIMESTAMP}，方便判断通道的空闲时间
  */
 public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
 
     private static final Logger logger = LoggerFactory.getLogger(HeartbeatHandler.class);
 
+    /**
+     * 最后一次读时间的key，在进行连接，或接收到数据时会被更新
+     *
+     * @see #connected(Channel)
+     * @see #received(Channel, Object)
+     */
     public static final String KEY_READ_TIMESTAMP = "READ_TIMESTAMP";
 
+    /**
+     * 最后一次写时间的key，在进行连接，或发送请求时会更新
+     *
+     * @see #connected(Channel)
+     * @see #sent(Channel, Object)
+     */
     public static final String KEY_WRITE_TIMESTAMP = "WRITE_TIMESTAMP";
 
     public HeartbeatHandler(ChannelHandler handler) {
@@ -68,6 +82,7 @@ public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
     public void received(Channel channel, Object message) throws RemotingException {
 
         // 更新通道的最后一次读时间，可以作为最后一次读操作时间的判断依据
+        // 比如心跳请求的定时任务org.apache.dubbo.remoting.exchange.support.header.HeartbeatTimerTask会使用该值判断是否进行心跳请求
         setReadTimestamp(channel);
 
         // 是心跳请求
@@ -103,10 +118,20 @@ public class HeartbeatHandler extends AbstractChannelHandlerDelegate {
         handler.received(channel, message);
     }
 
+    /**
+     * 设置当前通道的最后一次读时间
+     *
+     * @param channel 通道
+     */
     private void setReadTimestamp(Channel channel) {
         channel.setAttribute(KEY_READ_TIMESTAMP, System.currentTimeMillis());
     }
 
+    /**
+     * 设置当前通道的最后一次写时间
+     *
+     * @param channel 通道
+     */
     private void setWriteTimestamp(Channel channel) {
         channel.setAttribute(KEY_WRITE_TIMESTAMP, System.currentTimeMillis());
     }

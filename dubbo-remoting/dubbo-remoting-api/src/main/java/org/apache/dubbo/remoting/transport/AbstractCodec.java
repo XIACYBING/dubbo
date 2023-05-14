@@ -33,6 +33,13 @@ import java.net.InetSocketAddress;
 import static org.apache.dubbo.common.constants.CommonConstants.SIDE_KEY;
 
 /**
+ * {@link Codec2}的抽象实现，提供以下方法的通用方法实现：
+ *
+ * @see #getSerialization：基于{@link Channel}上的{@link URL}上的{@link Constants#SERIALIZATION_KEY}参数，通过SPI机制获取当前使用的序列化方式
+ * @see #checkPayload：检查编码和解码的数据长度，如果超出限制，则抛出异常
+ * @see #isClientSide：当前是Client端
+ * @see #isServerSide：当前是Server端
+ * <p>
  * AbstractCodec
  */
 public abstract class AbstractCodec implements Codec2 {
@@ -44,11 +51,17 @@ public abstract class AbstractCodec implements Codec2 {
     private static final String SERVER_SIDE = "server";
 
     protected static void checkPayload(Channel channel, long size) throws IOException {
+
+        // 获取配置的payload长度限制
         int payload = getPayload(channel);
+
+        // 判断当前数据量大小是否超出限制
         boolean overPayload = isOverPayload(payload, size);
+
+        // 超出限制则抛出异常
         if (overPayload) {
             ExceedPayloadLimitException e = new ExceedPayloadLimitException(
-                    "Data length too large: " + size + ", max payload: " + payload + ", channel: " + channel);
+                "Data length too large: " + size + ", max payload: " + payload + ", channel: " + channel);
             logger.error(e);
             throw e;
         }
@@ -87,15 +100,16 @@ public abstract class AbstractCodec implements Codec2 {
             return true;
         } else if (SERVER_SIDE.equals(side)) {
             return false;
-        } else {
+        }
+
+        // 如果side参数既不是client和server，则重新判断
+        else {
             InetSocketAddress address = channel.getRemoteAddress();
             URL url = channel.getUrl();
-            boolean isClient = url.getPort() == address.getPort()
-                && NetUtils.filterLocalHost(url.getIp()).equals(
-                NetUtils.filterLocalHost(address.getAddress()
-                    .getHostAddress()));
-            channel.setAttribute(SIDE_KEY, isClient ? CLIENT_SIDE
-                : SERVER_SIDE);
+            boolean isClient = url.getPort() == address.getPort() && NetUtils
+                .filterLocalHost(url.getIp())
+                .equals(NetUtils.filterLocalHost(address.getAddress().getHostAddress()));
+            channel.setAttribute(SIDE_KEY, isClient ? CLIENT_SIDE : SERVER_SIDE);
             return isClient;
         }
     }
