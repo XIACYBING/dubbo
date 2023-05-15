@@ -17,6 +17,8 @@
 package org.apache.dubbo.rpc;
 
 /**
+ * 导出器，根据{@link Protocol}到生成{@link Exporter}，然后包装{@link Invoker}
+ * <p>
  * Exporter. (API/SPI, Prototype, ThreadSafe)
  *
  * @see org.apache.dubbo.rpc.Protocol#export(Invoker)
@@ -26,6 +28,8 @@ package org.apache.dubbo.rpc;
 public interface Exporter<T> {
 
     /**
+     * 获取封装过的{@link Invoker}
+     * <p>
      * get invoker.
      *
      * @return invoker
@@ -33,6 +37,8 @@ public interface Exporter<T> {
     Invoker<T> getInvoker();
 
     /**
+     * 将当前{@link Exporter}发布的{@link Invoker}销毁
+     * <p>
      * unexport.
      * <p>
      * <code>

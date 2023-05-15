@@ -19,6 +19,11 @@ package org.apache.dubbo.rpc;
 import org.apache.dubbo.common.extension.SPI;
 
 /**
+ * {@link Invoker}操作监听器，监听以下操作：
+ *
+ * @see org.apache.dubbo.rpc.Protocol#refer(Class, org.apache.dubbo.common.URL)
+ * @see org.apache.dubbo.rpc.Invoker#destroy()
+ * <p>
  * InvokerListener. (SPI, Singleton, ThreadSafe)
  */
 @SPI

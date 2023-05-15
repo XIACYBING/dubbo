@@ -31,6 +31,8 @@ import java.util.function.Function;
 
 
 /**
+ * 一次{@code RPC}调用的结果
+ *
  * (API, Prototype, NonThreadSafe)
  *
  * An RPC {@link Result}.
@@ -47,12 +49,19 @@ import java.util.function.Function;
 public interface Result extends Serializable {
 
     /**
+     * 获取调用结果
+     * <p>
      * Get invoke result.
      *
      * @return result. if no result return null.
      */
     Object getValue();
 
+    /**
+     * 设置调用结果
+     *
+     * @param value
+     */
     void setValue(Object value);
 
     /**
@@ -65,6 +74,8 @@ public interface Result extends Serializable {
     void setException(Throwable t);
 
     /**
+     * 调用是否发生了异常
+     * <p>
      * Has exception.
      *
      * @return has exception.
@@ -72,6 +83,8 @@ public interface Result extends Serializable {
     boolean hasException();
 
     /**
+     * 重现调用，一般在消费者获取结果时使用：如果对提供者调用时发生异常，则抛出异常，如果没有，则正常返回结果
+     *
      * Recreate.
      * <p>
      * <code>
@@ -88,6 +101,8 @@ public interface Result extends Serializable {
     Object recreate() throws Throwable;
 
     /**
+     * 获取附件
+     * <p>
      * get attachments.
      *
      * @return attachments.
@@ -171,6 +186,8 @@ public interface Result extends Serializable {
     void setObjectAttachment(String key, Object value);
 
     /**
+     * 添加一个回调，当RPC调用完成时，会触发此处添加的回调
+     * <p>
      * Add a callback which can be triggered when the RPC call finishes.
      * <p>
      * Just as the method name implies, this method will guarantee the callback being triggered under the same context as when the call was started,
@@ -181,9 +198,18 @@ public interface Result extends Serializable {
      */
     Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn);
 
+    /**
+     * RPC调用完成时，需要触发的内容
+     */
     <U> CompletableFuture<U> thenApply(Function<Result, ? extends U> fn);
 
+    /**
+     * 获取调用结果
+     */
     Result get() throws InterruptedException, ExecutionException;
 
+    /**
+     * 获取调用结果（会超时）
+     */
     Result get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
 }

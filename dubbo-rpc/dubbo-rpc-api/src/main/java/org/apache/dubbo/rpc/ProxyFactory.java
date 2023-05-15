@@ -19,16 +19,21 @@ package org.apache.dubbo.rpc;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.extension.Adaptive;
 import org.apache.dubbo.common.extension.SPI;
+import org.apache.dubbo.rpc.proxy.javassist.JavassistProxyFactory;
 
 import static org.apache.dubbo.rpc.Constants.PROXY_KEY;
 
 /**
+ * 代理工厂，默认实现是{@link JavassistProxyFactory}
+ * <p>
  * ProxyFactory. (API/SPI, Singleton, ThreadSafe)
  */
 @SPI("javassist")
 public interface ProxyFactory {
 
     /**
+     * 为传入的{@link Invoker}创建代理对象
+     * <p>
      * create proxy.
      *
      * @param invoker
@@ -47,6 +52,8 @@ public interface ProxyFactory {
     <T> T getProxy(Invoker<T> invoker, boolean generic) throws RpcException;
 
     /**
+     * 将传入的代理对象转换成{@link Invoker}对象，可以理解为{@link #getProxy}的逆向操作
+     * <p>
      * create invoker.
      *
      * @param <T>

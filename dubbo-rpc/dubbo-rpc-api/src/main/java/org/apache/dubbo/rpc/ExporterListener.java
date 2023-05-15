@@ -19,6 +19,8 @@ package org.apache.dubbo.rpc;
 import org.apache.dubbo.common.extension.SPI;
 
 /**
+ * {@code export}操作的监听器，监听{@link Protocol#export(Invoker)}和{@link Exporter#unexport()}操作
+ * <p>
  * ExporterListener. (SPI, Singleton, ThreadSafe)
  */
 @SPI

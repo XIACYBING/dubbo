@@ -37,6 +37,10 @@ public interface Protocol {
     int getDefaultPort();
 
     /**
+     * 一般在Provider端使用，将服务提供者按照协议包装成{@link Exporter}，然后给外部使用
+     *
+     * {@link #export}操作一般会涉及代理的创建、底层{@code server}的启动
+     *
      * Export service for remote invocation: <br>
      * 1. Protocol should record request source address after receive a request:
      * RpcContext.getContext().setRemoteAddress();<br>
@@ -53,6 +57,10 @@ public interface Protocol {
     <T> Exporter<T> export(Invoker<T> invoker) throws RpcException;
 
     /**
+     * 一般在Consumer端使用，将要消费的接口类传递进来，包装成一个{@link Invoker}返回
+     *
+     * {@link #refer}操作一般会涉及{@link Invoker}的查询和获取，以及底层{@code client}的创建
+     *
      * Refer a remote service: <br>
      * 1. When user calls `invoke()` method of `Invoker` object which's returned from `refer()` call, the protocol
      * needs to correspondingly execute `invoke()` method of `Invoker` object <br>
@@ -71,6 +79,11 @@ public interface Protocol {
     <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException;
 
     /**
+     * 销毁{@link Protocol}:
+     * 1. 取消当前protocol导出和引用的所有服务
+     * 2. 释放所有资源，比如相关的连接和端口
+     * 3. 可以继续提供导出和销毁能力？？   todo 为啥？
+     * <p>
      * Destroy protocol: <br>
      * 1. Cancel all services this protocol exports and refers <br>
      * 2. Release all occupied resources, for example: connection, port, etc. <br>

@@ -19,6 +19,8 @@ package org.apache.dubbo.rpc;
 import org.apache.dubbo.common.extension.SPI;
 
 /**
+ * 过滤器接口定义，拦截并过滤Dubbo请求，Dubbo本身也提供了不少{@link Filter}实现，可以直接
+ *
  * Extension for intercepting the invocation for both service provider and consumer, furthermore, most of
  * functions in dubbo are implemented base on the same mechanism. Since every time when remote method is
  * invoked, the filter extensions will be executed too, the corresponding penalty should be considered before

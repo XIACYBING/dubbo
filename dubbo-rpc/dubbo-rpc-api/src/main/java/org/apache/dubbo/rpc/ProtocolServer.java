@@ -20,6 +20,8 @@ import org.apache.dubbo.common.URL;
 import org.apache.dubbo.remoting.RemotingServer;
 
 /**
+ * 协议层的服务器接口定义，其实是对{@link RemotingServer}的一层简单封装
+ * <p>
  * Distinct from {@link RemotingServer}, each protocol holds one or more ProtocolServers(the number usually decides by port numbers),
  * while each ProtocolServer holds zero or one RemotingServer.
  */
