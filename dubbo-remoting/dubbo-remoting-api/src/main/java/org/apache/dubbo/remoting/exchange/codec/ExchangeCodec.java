@@ -50,16 +50,83 @@ import java.io.InputStream;
  */
 public class ExchangeCodec extends TelnetCodec {
 
-    // header length.
+    /**
+     * 协议头长度，16字节，128位
+     * <p>
+     * header length.
+     */
     protected static final int HEADER_LENGTH = 16;
-    // magic header.
-    protected static final short MAGIC = (short) 0xdabb;
+
+    /**
+     * 协议头的前16位，是固定的魔数值，分为{@link #MAGIC_HIGH}和{@link #MAGIC_LOW}两个字节，每个字节8位，可以根据这两个字节快速判断一个数据包是否为{@code Dubbo}
+     * 协议，类似Java字节码文件中的魔数
+     * <p>
+     * {@link #MAGIC_HIGH}：使用第0-7位比特位，共8位比特
+     * {@link #MAGIC_LOW}：使用第8-15位比特位，共8位比特
+     * <p>
+     * magic header.
+     */
+    protected static final short MAGIC = (short)0xdabb;
     protected static final byte MAGIC_HIGH = Bytes.short2bytes(MAGIC)[0];
     protected static final byte MAGIC_LOW = Bytes.short2bytes(MAGIC)[1];
-    // message flag.
-    protected static final byte FLAG_REQUEST = (byte) 0x80;
-    protected static final byte FLAG_TWOWAY = (byte) 0x40;
-    protected static final byte FLAG_EVENT = (byte) 0x20;
+
+    /**
+     * 消息标识位，用于标识当前消息是{@link Request}还是{@link Response}，占一个比特
+     * <p>
+     * {@link #FLAG_REQUEST}：使用第16位比特位，共1位比特
+     * <p>
+     * message flag.
+     */
+    protected static final byte FLAG_REQUEST = (byte)0x80;
+
+    /**
+     * twoWay标识符，表示当前消息是单向消息还是双向消息，占一个比特
+     * <p>
+     * {@link #FLAG_TWOWAY}：使用第17位比特位，共1位比特
+     */
+    protected static final byte FLAG_TWOWAY = (byte)0x40;
+
+    /**
+     * event标识位，表示当前消息是否事件消息，占一个比特
+     * <p>
+     * {@link #FLAG_EVENT}：使用第18位比特位，共1位比特
+     */
+    protected static final byte FLAG_EVENT = (byte)0x20;
+
+    /**
+     * 用于获取序列化类型的标志位的掩码，占五个比特
+     * <p>
+     * {@link #FLAG_EVENT}：使用第19-23位比特位，共5位比特
+     * <p>
+     * 剩余的协议内容：
+     * <p>
+     * {@code status}：表示响应状态，使用第24-31位比特位，共5位比特，只在{@link Response}时有值
+     * {@code requestId}：表示请求id，使用第32-95位比特位，共64位比特，值类型为{@link Long}
+     * {@code payloadLength}：表示协议负载数据（{@link Request#mData} 或 {@link Response#mResult}）的长度，使用第96-127位比特位，共32
+     * 位比特，值类型为{@link Integer}
+     * {@code payload}：协议负载数据内容，由{@link #SERIALIZATION_MASK}代表的序列化器序列后的字节数据进行填充，根据请求类型的不同，会有不同的数据排列：
+     * 协议内容为{@link Request}时的排列方案：
+     * <ol>
+     *     <li>{@code dubbo version}：dubbo版本</li>
+     *     <li>{@code interface name}：接口全路径</li>
+     *     <li>{@code interface version}：接口版本</li>
+     *     <li>{@code method name}：方法名称</li>
+     *     <li>{@code method parameter type}：方法参数类型</li>
+     *     <li>{@code method arguments}：方法参数值</li>
+     *     <li>{@code attachments}：请求携带的附件内容</li>
+     * </ol>
+     * 协议内容为{@link Response}时的排列方案：
+     * <ol>
+     *     <li>{@code return type}：返回值类型（不是Class类型，而是返回值的描述）：
+     *         <ul>
+     *             <li>{@code RESPONSE_WITH_EXCEPTION}：异常返回值</li>
+     *             <li>{@code RESPONSE_VALUE}：正常返回值</li>
+     *             <li>{@code RESPONSE_NULL_VALUE}：空返回值</li>
+     *         </ul>
+     *     </li>
+     *     <li>{@code return value}：代表返回值的字节，由{@link #SERIALIZATION_MASK}代表的序列化器序列后的字节数据进行填充</li>
+     * </ol>
+     */
     protected static final int SERIALIZATION_MASK = 0x1f;
     private static final Logger logger = LoggerFactory.getLogger(ExchangeCodec.class);
 
@@ -147,21 +214,36 @@ public class ExchangeCodec extends TelnetCodec {
     }
 
     protected Object decodeBody(Channel channel, InputStream is, byte[] header) throws IOException {
-        byte flag = header[2], proto = (byte) (flag & SERIALIZATION_MASK);
+
+        // flag是协议头的第三个字节，存储着req/res、twoWay、event和serializationId标识
+        // proto是计算出的serializationId
+        byte flag = header[2], proto = (byte)(flag & SERIALIZATION_MASK);
+
+        // 计算出请求id，请求id存储在32比特到64比特中
         // get request id.
         long id = Bytes.bytes2long(header, 4);
+
+        // 如果是响应
         if ((flag & FLAG_REQUEST) == 0) {
             // decode response.
             Response res = new Response(id);
+
+            // 计算是否event响应
             if ((flag & FLAG_EVENT) != 0) {
                 res.setEvent(true);
             }
+
+            // 获取响应状态，仅在Response中需要设置和解析
             // get status.
             byte status = header[3];
             res.setStatus(status);
             try {
+
+                // 响应成功，解析数据
                 if (status == Response.OK) {
                     Object data;
+
+                    // 解析事件数据：心跳或非心跳
                     if (res.isEvent()) {
                         byte[] eventPayload = CodecSupport.getPayload(is);
                         if (CodecSupport.isHeartBeat(eventPayload, proto)) {
@@ -174,13 +256,18 @@ public class ExchangeCodec extends TelnetCodec {
                         }
                     }
 
-                    // 解码响应数据
+                    // 解析正常的响应数据
                     else {
                         data = decodeResponseData(channel, CodecSupport.deserialize(channel.getUrl(), is, proto),
                             getRequestData(id));
                     }
+
+                    // 设置数据
                     res.setResult(data);
-                } else {
+                }
+
+                // 响应失败，解析错误信息
+                else {
                     res.setErrorMessage(CodecSupport.deserialize(channel.getUrl(), is, proto).readUTF());
                 }
             } catch (Throwable t) {
@@ -188,16 +275,23 @@ public class ExchangeCodec extends TelnetCodec {
                 res.setErrorMessage(StringUtils.toString(t));
             }
             return res;
-        } else {
+        }
+
+        // 解析请求
+        else {
             // decode request.
             Request req = new Request(id);
             req.setVersion(Version.getProtocolVersion());
+
+            // 设置事件标识
             req.setTwoWay((flag & FLAG_TWOWAY) != 0);
             if ((flag & FLAG_EVENT) != 0) {
                 req.setEvent(true);
             }
             try {
                 Object data;
+
+                // 解析事件数据
                 if (req.isEvent()) {
                     byte[] eventPayload = CodecSupport.getPayload(is);
                     if (CodecSupport.isHeartBeat(eventPayload, proto)) {
@@ -236,16 +330,33 @@ public class ExchangeCodec extends TelnetCodec {
         return req.getData();
     }
 
+    /**
+     * 写入数据到{@code buffer}中，先写入协议数据，再写入协议头
+     * <p>
+     * 编码请求：
+     * <p>
+     * 1、先将数据写入到代表协议头的{@code header}数组中，
+     * 2、再将协议负载内容写入到{@code buffer}中，设置协议负载内容长度到 {@code header}中，
+     * 3、最后将协议头数据{@code header}写入到{@code buffer}中
+     */
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
+
+        // 获取序列化器
         Serialization serialization = getSerialization(channel, req);
+
+        // 初始化协议头数组
         // header.
         byte[] header = new byte[HEADER_LENGTH];
+
+        // 设置魔数
         // set magic number.
         Bytes.short2bytes(MAGIC, header);
 
+        // 设置请求/响应标识，和serializationId标识
         // set request and serialization flag.
-        header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
+        header[2] = (byte)(FLAG_REQUEST | serialization.getContentTypeId());
 
+        // twoWay和event标识设置
         if (req.isTwoWay()) {
             header[2] |= FLAG_TWOWAY;
         }
@@ -253,19 +364,26 @@ public class ExchangeCodec extends TelnetCodec {
             header[2] |= FLAG_EVENT;
         }
 
+        // requestId设置
         // set request id.
         Bytes.long2bytes(req.getId(), header, 4);
 
         // encode request data.
+        // 记录当前的写入索引，为协议头留出位置，先将协议数据内容写入到buffer中
         int savedWriteIndex = buffer.writerIndex();
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
         ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
 
-        // 序列化心跳请求
+        // 序列化心跳请求：心跳请求数据为空
         if (req.isHeartbeat()) {
             // heartbeat request data is always null
             bos.write(CodecSupport.getNullBytesOf(serialization));
-        } else {
+        }
+
+        // 序列化正常请求数据
+        else {
+
+            // 包装bos，获取序列化器对应的ObjectOutput，用于写入数据
             ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
 
             // 序列化事件请求的数据
@@ -279,28 +397,45 @@ public class ExchangeCodec extends TelnetCodec {
             }
             out.flushBuffer();
             if (out instanceof Cleanable) {
-                ((Cleanable) out).cleanup();
+                ((Cleanable)out).cleanup();
             }
         }
 
+        // flush数据并关闭输出流
         bos.flush();
         bos.close();
+
+        // 校验负载大小
         int len = bos.writtenBytes();
         checkPayload(channel, len);
+
+        // 写入请求数据的长度到header
         Bytes.int2bytes(len, header, 12);
 
         // write
+        // 重置写索引位置，开始写入协议头
         buffer.writerIndex(savedWriteIndex);
         buffer.writeBytes(header); // write header.
+
+        // 恢复写索引位置到协议数据内容尾部
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH + len);
     }
 
+    /**
+     * 编码响应
+     * <p>
+     * 1、先将数据写入到代表协议头的{@code header}数组中，
+     * 2、再将协议负载内容写入到{@code buffer}中，设置协议负载内容长度到 {@code header}中，
+     * 3、最后将协议头数据{@code header}写入到{@code buffer}中
+     */
     protected void encodeResponse(Channel channel, ChannelBuffer buffer, Response res) throws IOException {
         int savedWriteIndex = buffer.writerIndex();
         try {
             Serialization serialization = getSerialization(channel, res);
             // header.
             byte[] header = new byte[HEADER_LENGTH];
+
+            // 魔数、序列化器id、event、status和requestId的设置
             // set magic number.
             Bytes.short2bytes(MAGIC, header);
             // set request and serialization flag.
@@ -314,15 +449,20 @@ public class ExchangeCodec extends TelnetCodec {
             // set request id.
             Bytes.long2bytes(res.getId(), header, 4);
 
+            // 修改写索引，调整到固定协议头的长度之后
             buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
+
+            // 将通道缓存包装成输出流
             ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
 
             // encode response data or error message.
             if (status == Response.OK) {
-                if(res.isHeartbeat()){
+                if (res.isHeartbeat()) {
                     // heartbeat response data is always null
                     bos.write(CodecSupport.getNullBytesOf(serialization));
-                }else {
+                } else {
+
+                    // 根据url上配置的序列化器，将通道输出流包装成对应的对象输出流，以便处理请求对象实例
                     ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
                     if (res.isEvent()) {
                         encodeEventData(channel, out, res.getResult());
@@ -338,21 +478,30 @@ public class ExchangeCodec extends TelnetCodec {
                     }
                 }
             } else {
+
+                // 根据url上配置的序列化器，将通道输出流包装成对应的对象输出流，以便处理请求对象实例
                 ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
                 out.writeUTF(res.getErrorMessage());
                 out.flushBuffer();
                 if (out instanceof Cleanable) {
-                    ((Cleanable) out).cleanup();
+                    ((Cleanable)out).cleanup();
                 }
             }
 
             bos.flush();
             bos.close();
 
+            // 计算协议负载的内容大小
             int len = bos.writtenBytes();
+
+            // 判断负载内容是否超出限制
             checkPayload(channel, len);
+
+            // 写入负载内容的大小到header中
             Bytes.int2bytes(len, header, 12);
+
             // write
+            // 重置写索引，写入协议头数据，并根据协议头长度设置写索引
             buffer.writerIndex(savedWriteIndex);
             buffer.writeBytes(header); // write header.
             buffer.writerIndex(savedWriteIndex + HEADER_LENGTH + len);
