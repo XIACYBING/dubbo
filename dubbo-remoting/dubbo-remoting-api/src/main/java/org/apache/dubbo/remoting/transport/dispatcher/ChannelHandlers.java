@@ -56,6 +56,8 @@ public class ChannelHandlers {
      */
     protected ChannelHandler wrapInternal(ChannelHandler handler, URL url) {
         return new MultiMessageHandler(new HeartbeatHandler(
+
+            // Dispatcher会生成负责线程模型处理的ChannelHandler（比如AllChannelHandler），负责网络框架的IO线程和Dubbo线程的切换
             ExtensionLoader.getExtensionLoader(Dispatcher.class).getAdaptiveExtension().dispatch(handler, url)));
     }
 }

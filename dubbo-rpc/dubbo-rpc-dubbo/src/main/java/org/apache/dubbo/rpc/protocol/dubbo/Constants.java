@@ -32,6 +32,9 @@ public interface Constants {
 
     String DECODE_IN_IO_THREAD_KEY = "decode.in.io";
 
+    /**
+     * 解码操作是否在IO线程中操作
+     */
     boolean DEFAULT_DECODE_IN_IO_THREAD = false;
 
     /**

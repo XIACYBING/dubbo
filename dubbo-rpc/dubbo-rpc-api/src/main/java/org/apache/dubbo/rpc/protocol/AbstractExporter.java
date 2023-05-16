@@ -22,6 +22,8 @@ import org.apache.dubbo.rpc.Exporter;
 import org.apache.dubbo.rpc.Invoker;
 
 /**
+ * {@link Exporter}的抽象实现，提供{@link Invoker}的管理能力，和通用的{@link #unexport()}实现
+ * <p>
  * AbstractExporter.
  */
 public abstract class AbstractExporter<T> implements Exporter<T> {
@@ -52,11 +54,19 @@ public abstract class AbstractExporter<T> implements Exporter<T> {
 
     @Override
     final public void unexport() {
+
+        // 已经unexport的，不再处理
         if (unexported) {
             return;
         }
+
+        // 设置unexport表示
         unexported = true;
+
+        // 销毁invoker
         getInvoker().destroy();
+
+        // unexport的后置处理，由子类实现
         afterUnExport();
     }
 

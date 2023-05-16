@@ -16,8 +16,23 @@
  */
 package org.apache.dubbo.rpc;
 
+import java.util.concurrent.Future;
+
 public enum InvokeMode {
 
-    SYNC, ASYNC, FUTURE;
+    /**
+     * 同步调用
+     */
+    SYNC,
+
+    /**
+     * 异步调用
+     */
+    ASYNC,
+
+    /**
+     * {@link Future}调用
+     */
+    FUTURE;
 
 }

@@ -141,11 +141,13 @@ public class NettyServer extends AbstractServer implements RemotingServer {
                             .addLast("negotiation",
                                 SslHandlerInitializer.sslServerHandler(getUrl(), nettyServerHandler));
                     }
+
+                    // 在Netty的IO线程中执行的处理器有：InternalDecode、InternalEncoder、IdleStateHandler、NettyServerHandler
+                    // （NettyServerHandler中的ChannelHandler操作会委托给NettyServer，最终委托给NettyServer中的Handler）
                     ch.pipeline()
 
-                      // 注册Decoder和Encoder：内部对象，会调用adapter的codec属性去处理相关编码任务
-                      .addLast("decoder", adapter.getDecoder())
-                      .addLast("encoder", adapter.getEncoder())
+                      // 注册Decoder和Encoder：内部对象，会调用adapter的codec（实现类一般是DubboCodec）属性去处理相关编码任务
+                      .addLast("decoder", adapter.getDecoder()).addLast("encoder", adapter.getEncoder())
 
                       // 服务器空闲处理器，Netty提供的一个工具型的ChannelHandler，用于定时心跳请求，或关闭长时间空闲连接的功能
                       // IdleStateHandler会通过lastReadTime、lastWriteTime等几个字段，记录最近一次读/写的事件的时间，

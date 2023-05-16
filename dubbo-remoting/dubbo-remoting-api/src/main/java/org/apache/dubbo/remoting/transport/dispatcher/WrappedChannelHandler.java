@@ -40,7 +40,7 @@ import java.util.concurrent.ExecutorService;
 /**
  * {@link ChannelHandler}的包装类，实际的处理逻辑还是交给作为构造器参数传入的{@link #handler}，只是对其进行一些逻辑封装，比如{@link AllChannelHandler}会将处理提交到线程池中
  * <p>
- * 当前类的不同实现会进行不同的处理：主要体现在某些逻辑会提交给线程池处理，其他的逻辑会直接交给调用的IO线程处理
+ * 当前类的不同实现会进行不同的处理：主要体现在某些逻辑会提交给线程池处理，其他的逻辑会直接交给调用的IO线程处理：即负责线程模型的切换
  * {@link AllChannelHandler}会将除{@link #sent}外的其他方法提交给线程池处理
  * {@link MessageOnlyChannelHandler}会将{@link #received}接收到的所有消息都提交给线程池处理
  * {@link ExecutionChannelHandler}则只会在{@link #received}中将请求消息/有关联{@link ThreadlessExecutor}的响应消息提交给线程池处理

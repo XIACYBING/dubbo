@@ -40,20 +40,34 @@ import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
 
 /**
+ * {@link Protocol}的抽象实现类，维护着{@link #export}和{@link #refer}操作生成的结果（具体的{@code export}和{@code refer}操作交由子类实现），
+ * 并提供{@link #destroy()}的通用实现
+ * <p>
  * abstract ProtocolSupport.
  */
 public abstract class AbstractProtocol implements Protocol {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
+    /**
+     * {@code export}出去的服务集合
+     */
     protected final DelegateExporterMap exporterMap = new DelegateExporterMap();
 
     /**
+     * protocol下的服务器缓存
+     * <p>
+     * 每个IP地址在同一个协议下只会启动一个服务器，服务器监听对应端口的连接请求，并完成连接创建
+     * <p>
      * <host:port, ProtocolServer>
      */
     protected final Map<String, ProtocolServer> serverMap = new ConcurrentHashMap<>();
 
-    //TODO SoftReference
+    /**
+     * TODO SoftReference
+     * <p>
+     * Invoker的缓存
+     */
     protected final Set<Invoker<?>> invokers = new ConcurrentHashSet<Invoker<?>>();
 
     protected static String serviceKey(URL url) {
@@ -61,6 +75,9 @@ public abstract class AbstractProtocol implements Protocol {
         return serviceKey(port, url.getPath(), url.getParameter(VERSION_KEY), url.getParameter(GROUP_KEY));
     }
 
+    /**
+     * 获取服务key：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     protected static String serviceKey(int port, String serviceName, String serviceVersion, String serviceGroup) {
         return ProtocolUtils.serviceKey(port, serviceName, serviceVersion, serviceGroup);
     }
@@ -72,8 +89,11 @@ public abstract class AbstractProtocol implements Protocol {
 
     @Override
     public void destroy() {
+
+        // 遍历refer出去的invoker集合，并调用invoker的destroy方法，释放资源
         for (Invoker<?> invoker : invokers) {
             if (invoker != null) {
+                // 从集合中移除当前invoker
                 invokers.remove(invoker);
                 try {
                     if (logger.isInfoEnabled()) {
@@ -85,6 +105,9 @@ public abstract class AbstractProtocol implements Protocol {
                 }
             }
         }
+
+        // 遍历export出去的Exporter，调用相应的unexport方法销毁发布出去的服务
+        // Exporter内部可能关联exporterMap，在进行unexport的时候会断开和exporterMap的关联
         for (Map.Entry<String, Exporter<?>> item : exporterMap.getExporterMap().entrySet()) {
             if (exporterMap.removeExportMap(item.getKey(), item.getValue())) {
                 try {

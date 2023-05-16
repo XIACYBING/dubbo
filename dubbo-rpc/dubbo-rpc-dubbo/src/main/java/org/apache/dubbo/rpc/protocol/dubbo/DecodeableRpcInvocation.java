@@ -16,7 +16,6 @@
  */
 package org.apache.dubbo.rpc.protocol.dubbo;
 
-
 import org.apache.dubbo.common.config.ConfigurationUtils;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
@@ -30,6 +29,7 @@ import org.apache.dubbo.remoting.Codec;
 import org.apache.dubbo.remoting.Decodeable;
 import org.apache.dubbo.remoting.exchange.Request;
 import org.apache.dubbo.remoting.transport.CodecSupport;
+import org.apache.dubbo.remoting.transport.DecodeHandler;
 import org.apache.dubbo.rpc.RpcInvocation;
 import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.apache.dubbo.rpc.model.MethodDescriptor;
@@ -64,6 +64,11 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
 
     private Request request;
 
+    /**
+     * 解码标识
+     * <p>
+     * 有两个解码方法：{@link DubboCodec#decodeBody}和{@link DecodeHandler#decode}
+     */
     private volatile boolean hasDecoded;
 
     public DecodeableRpcInvocation(Channel channel, Request request, InputStream is, byte id) {
@@ -78,8 +83,12 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
 
     @Override
     public void decode() throws Exception {
+
+        // 还未解码，且channel和输入流不为空
         if (!hasDecoded && channel != null && inputStream != null) {
             try {
+
+                // 调用解码方法
                 decode(channel, inputStream);
             } catch (Throwable e) {
                 if (log.isWarnEnabled()) {

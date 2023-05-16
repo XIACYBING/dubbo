@@ -132,6 +132,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
         try {
 
             // 由上层实现的ExchangeHandler来处理请求
+            // 比如DubboProtocol的内部属性requestHandler（ExchangeHandlerAdapter的实现类）
             CompletionStage<Object> future = handler.reply(channel, msg);
 
             // 附加响应处理完成后的逻辑：根据处理结果设置res，然后发送响应到consumer

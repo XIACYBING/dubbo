@@ -26,6 +26,7 @@ import org.apache.dubbo.common.serialize.ObjectOutput;
 import org.apache.dubbo.common.serialize.Serialization;
 import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.remoting.Channel;
+import org.apache.dubbo.remoting.Codec2;
 import org.apache.dubbo.remoting.exchange.Request;
 import org.apache.dubbo.remoting.exchange.Response;
 import org.apache.dubbo.remoting.exchange.codec.ExchangeCodec;
@@ -48,12 +49,13 @@ import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DECODE_IN_IO_THREAD_
 import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DEFAULT_DECODE_IN_IO_THREAD;
 
 /**
+ * {@link DubboCodec}是{@link Codec2}的默认实现，但是实际在使用时，默认使用的是{@link DubboCodec}的包装类{@link DubboCountCodec}
+ * <p>
  * 基于Dubbo协议，提供请求数据和响应数据的编码和解码能力，即对{@link RpcInvocation}和{@link Result}的编码和解码能力
  *
  * @see #encodeRequestData
- * @see #decodeRequestData
  * @see #encodeResponseData
- * @see #decodeResponseData
+ * @see #decodeBody
  * <p>
  * Dubbo codec.
  */
@@ -119,10 +121,17 @@ public class DubboCodec extends ExchangeCodec {
                     // 正常响应的解析
                     else {
                         DecodeableRpcResult result;
+
+                        // 如果可以在IO线程中解码，则直接解码
                         if (channel.getUrl().getParameter(DECODE_IN_IO_THREAD_KEY, DEFAULT_DECODE_IN_IO_THREAD)) {
                             result = new DecodeableRpcResult(channel, res, is, (Invocation)getRequestData(id), proto);
+
+                            // 调用DecodeableRpcResult中定义的解析方法，其实就是#encodeResponseData方法的逆向操作
                             result.decode();
-                        } else {
+                        }
+
+                        // 如果不行，则将is数据量包装，等待DecodeHandler解码
+                        else {
                             result = new DecodeableRpcResult(channel, res,
                                 new UnsafeByteArrayInputStream(readMessageData(is)), (Invocation)getRequestData(id),
                                 proto);
@@ -178,10 +187,17 @@ public class DubboCodec extends ExchangeCodec {
                 // 正常类型的请求数据解析
                 else {
                     DecodeableRpcInvocation inv;
+
+                    // 如果可以在IO线程中解码，则直接解码
                     if (channel.getUrl().getParameter(DECODE_IN_IO_THREAD_KEY, DEFAULT_DECODE_IN_IO_THREAD)) {
                         inv = new DecodeableRpcInvocation(channel, req, is, proto);
+
+                        // 调用DecodeableRpcInvocation中定义的解析方法，其实就是#encodeRequestData方法的逆向操作
                         inv.decode();
-                    } else {
+                    }
+
+                    // 如果不行，则将is数据量包装，等待DecodeHandler解码
+                    else {
                         inv = new DecodeableRpcInvocation(channel, req,
                             new UnsafeByteArrayInputStream(readMessageData(is)), proto);
                     }

@@ -20,12 +20,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
+ * 可序列化的类的注册中心
+ * <p>
  * Provide a unified serialization registry, this class used for {@code dubbo-serialization-fst}
  * and {@code dubbo-serialization-kryo}, it will register some classes at startup time (for example {@link AbstractKryoFactory#create})
  */
 public abstract class SerializableClassRegistry {
 
-
+    /**
+     * 可序列化的类集合：<可序列化的类, 序列化器>
+     */
     private static final Map<Class<?>, Object> REGISTRATIONS = new LinkedHashMap<>();
 
     /**

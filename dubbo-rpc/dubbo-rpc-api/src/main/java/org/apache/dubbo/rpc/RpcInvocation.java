@@ -51,42 +51,72 @@ public class RpcInvocation implements Invocation, Serializable {
     private static final long serialVersionUID = -4355285085441097045L;
 
     /**
-     * 目标服务唯一名称，一般是serviceKey：{group}/interfaceName:{version}
+     * 目标服务唯一名称，其实就是serviceKey，格式为：{group}/interfaceName:{version}
      */
     private String targetServiceUniqueName;
 
     /**
      * 由serviceKey和协议组成的字符串，比如com.xxx.yyy.AService接口，dubbo协议，group为AGroup，version为3：AGroup/com.xxx.yyy.AService:3:dubbo
-     *
+     * <p>
      * format:{group}/interfaceName:{version}:protocol
      */
     private String protocolServiceKey;
 
+    /**
+     * 要调用的方法名称
+     */
     private String methodName;
+
+    /**
+     * 要调用的目标服务路径：com.xxx.yyy.AService
+     */
     private String serviceName;
 
+    /**
+     * 目标方法的参数类型
+     */
     private transient Class<?>[] parameterTypes;
+
+    /**
+     * 目标方法的参数列表签名
+     */
     private String parameterTypesDesc;
     private String[] compatibleParamSignatures;
 
+    /**
+     * 具体的参数值
+     */
     private Object[] arguments;
 
     /**
+     * 此次调用的附件信息，将会被序列到请求中
+     * <p>
      * Passed to the remote server during RPC call
      */
     private Map<String, Object> attachments;
 
     /**
+     * 此次调用附加的属性信息，不会被序列化到请求中
+     * <p>
      * Only used on the caller side, will not appear on the wire.
      */
     private Map<Object, Object> attributes = new HashMap<>();
 
+    /**
+     * 此次调用关联的invoker对象
+     */
     private transient Invoker<?> invoker;
 
+    /**
+     * 方法返回值的类型
+     */
     private transient Class<?> returnType;
 
     private transient Type[] returnTypes;
 
+    /**
+     * 此次调用的类型
+     */
     private transient InvokeMode invokeMode;
 
     public RpcInvocation() {
@@ -94,8 +124,8 @@ public class RpcInvocation implements Invocation, Serializable {
 
     public RpcInvocation(Invocation invocation, Invoker<?> invoker) {
         this(invocation.getMethodName(), invocation.getServiceName(), invocation.getProtocolServiceKey(),
-                invocation.getParameterTypes(), invocation.getArguments(), new HashMap<>(invocation.getObjectAttachments()),
-                invocation.getInvoker(), invocation.getAttributes());
+            invocation.getParameterTypes(), invocation.getArguments(), new HashMap<>(invocation.getObjectAttachments()),
+            invocation.getInvoker(), invocation.getAttributes());
         if (invoker != null) {
             URL url = invoker.getUrl();
             setAttachment(PATH_KEY, url.getPath());

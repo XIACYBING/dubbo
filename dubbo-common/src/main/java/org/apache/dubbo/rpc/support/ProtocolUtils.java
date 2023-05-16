@@ -25,24 +25,33 @@ import java.util.concurrent.ConcurrentMap;
 import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_RAW_RETURN;
 import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_BEAN;
 import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_DEFAULT;
-import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_NATIVE_JAVA;
 import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_GSON;
+import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_NATIVE_JAVA;
 import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_SERIALIZATION_PROTOBUF;
 import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
 
 public class ProtocolUtils {
 
-    private static final ConcurrentMap<String, GroupServiceKeyCache> groupServiceKeyCacheMap = new ConcurrentHashMap<>();
+    /**
+     * 分组和服务key的映射：<group, groupServiceKeyCache>
+     */
+    private static final ConcurrentMap<String, GroupServiceKeyCache> groupServiceKeyCacheMap =
+        new ConcurrentHashMap<>();
 
     private ProtocolUtils() {
     }
 
+    /**
+     * 获取服务key：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     public static String serviceKey(URL url) {
-        return serviceKey(url.getPort(), url.getPath(), url.getParameter(VERSION_KEY),
-                url.getParameter(GROUP_KEY));
+        return serviceKey(url.getPort(), url.getPath(), url.getParameter(VERSION_KEY), url.getParameter(GROUP_KEY));
     }
 
+    /**
+     * 获取服务key：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     public static String serviceKey(int port, String serviceName, String serviceVersion, String serviceGroup) {
         serviceGroup = serviceGroup == null ? "" : serviceGroup;
         GroupServiceKeyCache groupServiceKeyCache = groupServiceKeyCacheMap.get(serviceGroup);

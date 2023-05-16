@@ -29,6 +29,7 @@ import org.apache.dubbo.remoting.Codec;
 import org.apache.dubbo.remoting.Decodeable;
 import org.apache.dubbo.remoting.exchange.Response;
 import org.apache.dubbo.remoting.transport.CodecSupport;
+import org.apache.dubbo.remoting.transport.DecodeHandler;
 import org.apache.dubbo.rpc.AppResponse;
 import org.apache.dubbo.rpc.Invocation;
 import org.apache.dubbo.rpc.RpcInvocation;
@@ -56,6 +57,11 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
 
     private Invocation invocation;
 
+    /**
+     * 解码标识
+     * <p>
+     * 有两个解码方法：{@link DubboCodec#decodeBody}和{@link DecodeHandler#decode}
+     */
     private volatile boolean hasDecoded;
 
     public DecodeableRpcResult(Channel channel, Response response, InputStream is, Invocation invocation, byte id) {
@@ -84,6 +90,7 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         ObjectInput in = CodecSupport.getSerialization(channel.getUrl(), serializationType)
                 .deserialize(channel.getUrl(), input);
 
+        // 根据响应状态进行不同的解码操作
         byte flag = in.readByte();
         switch (flag) {
             case DubboCodec.RESPONSE_NULL_VALUE:

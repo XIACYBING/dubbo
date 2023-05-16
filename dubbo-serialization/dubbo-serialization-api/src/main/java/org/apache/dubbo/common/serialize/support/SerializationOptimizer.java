@@ -19,6 +19,9 @@ package org.apache.dubbo.common.serialize.support;
 import java.util.Collection;
 
 /**
+ * 序列化优化器，为了让相关的序列化算法发挥出最佳的性能，需要将需要被序列化的类提前注册到系统中，
+ * 相关操作在{@link org.apache.dubbo.rpc.protocol.dubbo.DubboProtocol#optimizeSerialization}完成
+ * <p>
  * Interface defining serialization optimizer, there are nothing implementations for now.
  */
 public interface SerializationOptimizer {

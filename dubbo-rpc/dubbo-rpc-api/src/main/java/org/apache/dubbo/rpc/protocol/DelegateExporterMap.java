@@ -18,6 +18,8 @@ package org.apache.dubbo.rpc.protocol;
 
 import org.apache.dubbo.common.utils.CollectionUtils;
 import org.apache.dubbo.rpc.Exporter;
+import org.apache.dubbo.rpc.support.ProtocolUtils;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -27,10 +29,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * delegate exportermap oper
  */
 public class DelegateExporterMap {
+
+    /**
+     * {@code export}出去的服务集合
+     * <p>
+     * key由{@link ProtocolUtils#serviceKey}生成，格式：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     protected final Map<String, Exporter<?>> exporterMap = new ConcurrentHashMap<String, Exporter<?>>();
 
     /**
      * check is empty map
+     *
      * @return
      */
     public boolean isEmpty() {

@@ -21,11 +21,23 @@ import org.apache.dubbo.common.utils.StringUtils;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * 分组服务key的缓存类，每个group都会有一个缓存类，服务key格式：{serviceGroup/}serviceName{:serviceVersion}:port
+ */
 public class GroupServiceKeyCache {
 
+    /**
+     * 对应的分组
+     */
     private final String serviceGroup;
 
-    //ConcurrentMap<serviceName, ConcurrentMap<serviceVersion, ConcurrentMap<port, String>>>
+    /**
+     * 服务key格式：{serviceGroup/}serviceName{:serviceVersion}:port
+     * <p>
+     * <接口全路径, <接口版本, <端口, 服务key>>>
+     * <p>
+     * ConcurrentMap<serviceName, ConcurrentMap<serviceVersion, ConcurrentMap<port, String>>>
+     */
     private final ConcurrentMap<String, ConcurrentMap<String, ConcurrentMap<Integer, String>>> serviceKeyMap;
 
     public GroupServiceKeyCache(String serviceGroup) {
@@ -33,6 +45,14 @@ public class GroupServiceKeyCache {
         this.serviceKeyMap = new ConcurrentHashMap<>(512);
     }
 
+    /**
+     * 从缓存中获取serviceKey，如果没有缓存，则生成
+     *
+     * @param serviceName    服务接口的全路径：com.xxx.yyy.zzz.XyzApi
+     * @param serviceVersion 服务版本号：version
+     * @param port           服务暴露地址的端口号
+     * @return 返回获取到的serviceKey：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     public String getServiceKey(String serviceName, String serviceVersion, int port) {
         ConcurrentMap<String, ConcurrentMap<Integer, String>> versionMap = serviceKeyMap.get(serviceName);
         if (versionMap == null) {
@@ -55,6 +75,9 @@ public class GroupServiceKeyCache {
         return serviceKey;
     }
 
+    /**
+     * 创建serviceKey：{serviceGroup/}serviceName{:serviceVersion}:port
+     */
     private String createServiceKey(String serviceName, String serviceVersion, int port) {
         StringBuilder buf = new StringBuilder();
         if (StringUtils.isNotEmpty(serviceGroup)) {

@@ -32,7 +32,10 @@ import org.apache.dubbo.remoting.exchange.Response;
  * {@link Decodeable}，则对{@link Decodeable#decode()}方法进行调用
  * <p>
  * {@link DecodeHandler}是对请求体{@link Request#mData}和响应结果{@link Response#mResult}进行解码，而{@link Codec2}是对整个
- * {@link Request}和{@link Response}进行编码和解码
+ * {@link Request}和{@link Response}进行编码和解码（会根据配置判断是否需要对请求体和相应结果进行解码，如果不需要，则会由{@link DecodeHandler}承担解码工作）
+ * <p>
+ * 在{@link org.apache.dubbo.rpc.protocol.dubbo.DubboCodec#decodeBody}的解码操作中，会根据url
+ * 上配置的{@link org.apache.dubbo.rpc.protocol.dubbo.Constants#DEFAULT_DECODE_IN_IO_THREAD}属性，判断是否在IO线程中进行解码（比如Netty的IO线程）
  */
 public class DecodeHandler extends AbstractChannelHandlerDelegate {
 
