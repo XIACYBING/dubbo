@@ -23,7 +23,6 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.transport.AbstractChannel;
 import org.apache.dubbo.remoting.utils.PayloadDropper;
-
 import org.jboss.netty.channel.ChannelFuture;
 
 import java.net.InetSocketAddress;
@@ -73,6 +72,8 @@ final class NettyChannel extends AbstractChannel {
     }
 
     static void removeChannelIfDisconnected(org.jboss.netty.channel.Channel ch) {
+
+        // 如果channel连接断开，则移除当前channel
         if (ch != null && !ch.isConnected()) {
             CHANNEL_MAP.remove(ch);
         }

@@ -55,16 +55,25 @@ import static org.apache.dubbo.common.constants.CommonConstants.SSL_ENABLED_KEY;
 public class NettyServer extends AbstractServer implements RemotingServer {
 
     private static final Logger logger = LoggerFactory.getLogger(NettyServer.class);
+
     /**
+     * 客户端连接的Channel映射集合
+     * <p>
      * the cache for alive worker channel.
      * <ip:port, dubbo channel>
      */
     private Map<String, Channel> channels;
+
     /**
+     * 代表Netty服务器的Bootstrap
+     * <p>
      * netty server bootstrap.
      */
     private ServerBootstrap bootstrap;
+
     /**
+     * 绑定端口的服务器Channel
+     *
      * the boss channel that receive connections and dispatch these to worker channel.
      */
     private io.netty.channel.Channel channel;
@@ -173,6 +182,8 @@ public class NettyServer extends AbstractServer implements RemotingServer {
 
     @Override
     protected void doClose() throws Throwable {
+
+        // 关闭服务端的NettyChannel
         try {
             if (channel != null) {
                 // unbind.
@@ -181,6 +192,8 @@ public class NettyServer extends AbstractServer implements RemotingServer {
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
         }
+
+        // 关闭代表客户端连接的Channel
         try {
             Collection<Channel> channels = getChannels();
             if (channels != null && channels.size() > 0) {
@@ -195,6 +208,8 @@ public class NettyServer extends AbstractServer implements RemotingServer {
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
         }
+
+        // 关闭Netty相关的线程池
         try {
             if (bootstrap != null) {
                 bossGroup.shutdownGracefully().syncUninterruptibly();
@@ -203,6 +218,8 @@ public class NettyServer extends AbstractServer implements RemotingServer {
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);
         }
+
+        // 清理所有客户端Channel
         try {
             if (channels != null) {
                 channels.clear();

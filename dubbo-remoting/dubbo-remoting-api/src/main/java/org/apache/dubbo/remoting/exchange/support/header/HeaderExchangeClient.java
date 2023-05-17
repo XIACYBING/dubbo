@@ -57,6 +57,8 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     /**
      * 当前类对{@link ExchangeChannel}的所有操作都委托给当前{@link #channel}处理
+     * <p>
+     * 实际上最终也是委托给{@link #client}处理，当前{@link #channel}只是对{@link #client}的一层包装
      */
     private final ExchangeChannel channel;
 

@@ -105,7 +105,9 @@ public class DubboProtocol extends AbstractProtocol {
 
     /**
      * <host:port,Exchanger>
-     * {@link Map<String, List<ReferenceCountExchangeClient>}
+     * <p>
+     * key：host:port
+     * value：{@link #PENDING_OBJECT}或{@link List<ReferenceCountExchangeClient>}
      */
     private final Map<String, Object> referenceClientMap = new ConcurrentHashMap<>();
     private static final Object PENDING_OBJECT = new Object();
@@ -483,12 +485,18 @@ public class DubboProtocol extends AbstractProtocol {
 
     @Override
     public <T> Invoker<T> protocolBindingRefer(Class<T> serviceType, URL url) throws RpcException {
+
+        // 进行序列化优化，使用可能存在的序列化优化器
         optimizeSerialization(url);
 
+        // 创建一个DubboInvoker对象：getClients会生成对应的ExchangeClient[]
         // create rpc invoker.
         DubboInvoker<T> invoker = new DubboInvoker<T>(serviceType, url, getClients(url), invokers);
+
+        // 将创建完成的Invoker添加到集合中
         invokers.add(invoker);
 
+        // 返回创建完成的invoker
         return invoker;
     }
 
@@ -501,7 +509,7 @@ public class DubboProtocol extends AbstractProtocol {
         // whether to share connection
         int connections = url.getParameter(CONNECTIONS_KEY, 0);
 
-        // 如果没配置，则使用共享Client
+        // 如果没配置，则使用共享连接，即共享Client
         // if not configured, connection is shared, otherwise, one connection for one service
         if (connections == 0) {
 
@@ -512,11 +520,11 @@ public class DubboProtocol extends AbstractProtocol {
             connections = Integer.parseInt(StringUtils.isBlank(shareConnectionsStr) ?
                 ConfigUtils.getProperty(SHARE_CONNECTIONS_KEY, DEFAULT_SHARE_CONNECTIONS) : shareConnectionsStr);
 
-            // 获取相应数量的共享Client
+            // 获取共享Client，如果没有，则根据connections创建相应数量的共享客户端
             return getSharedClient(url, connections).toArray(new ExchangeClient[0]);
         }
 
-        // 初始化相应数量的客户端
+        // 初始化相应数量的客户端，由当前url独享
         else {
             ExchangeClient[] clients = new ExchangeClient[connections];
             for (int i = 0; i < clients.length; i++) {
@@ -529,6 +537,10 @@ public class DubboProtocol extends AbstractProtocol {
     }
 
     /**
+     * 获取共享客户端，代表即共享连接
+     * <p>
+     * 不是获取{@code connectNum}个Client，{@code connectNum}的作用是在没有共享客户端的时候，创建相应数量的共享客户端，如果已有共享客户端，会直接返回
+     * <p>
      * Get shared connection
      *
      * @param url
@@ -536,72 +548,115 @@ public class DubboProtocol extends AbstractProtocol {
      */
     @SuppressWarnings("unchecked")
     private List<ReferenceCountExchangeClient> getSharedClient(URL url, int connectNum) {
+
+        // 获取地址：IP:PORT
         String key = url.getAddress();
 
+        // 获取集合中当前key的数据
         Object clients = referenceClientMap.get(key);
+
+        // 只有在值为集合时才进行处理（非集合的时候可能是ReferenceCountExchangeClient）
         if (clients instanceof List) {
-            List<ReferenceCountExchangeClient> typedClients = (List<ReferenceCountExchangeClient>) clients;
+
+            // 类型转换
+            List<ReferenceCountExchangeClient> typedClients = (List<ReferenceCountExchangeClient>)clients;
+
+            // 校验Client集合中的Client是否全部可用，全部可用时才将其返回给外部使用
             if (checkClientCanUse(typedClients)) {
+
+                // 对当前Client集合中的Client进行引用计数自增
                 batchClientRefIncr(typedClients);
+
+                // 返回Client集合
                 return typedClients;
             }
         }
 
         List<ReferenceCountExchangeClient> typedClients = null;
 
+        // 加锁
         synchronized (referenceClientMap) {
             for (; ; ) {
                 clients = referenceClientMap.get(key);
 
                 if (clients instanceof List) {
-                    typedClients = (List<ReferenceCountExchangeClient>) clients;
+                    typedClients = (List<ReferenceCountExchangeClient>)clients;
+
+                    // 校验typedClients中的client是否全部可用，如果是，对client进行计数自增，并返回
                     if (checkClientCanUse(typedClients)) {
                         batchClientRefIncr(typedClients);
                         return typedClients;
-                    } else {
+                    }
+
+                    // 否则需要额外创建Client，先放入占位符PENDING_OBJECT，并中断循环
+                    else {
                         referenceClientMap.put(key, PENDING_OBJECT);
                         break;
                     }
-                } else if (clients == PENDING_OBJECT) {
+                }
+
+                // 如果当前的key映射的是PENDING_OBJECT，说明当前key正在创建，当前线程wait，等待其他线程创建完成
+                else if (clients == PENDING_OBJECT) {
                     try {
                         referenceClientMap.wait();
                     } catch (InterruptedException ignored) {
                     }
-                } else {
+                }
+
+                // 不是以上两种情况，放入占位符PENDING_OBJECT，并中断循环
+                else {
                     referenceClientMap.put(key, PENDING_OBJECT);
                     break;
                 }
             }
         }
 
+        // 退出同步块，开始创建共享Client
+
         try {
+
+            // 最少创建一个
             // connectNum must be greater than or equal to 1
             connectNum = Math.max(connectNum, 1);
 
+            // 如果上面获取到的typedClients集合为空，说明共享客户端需要初始化
             // If the clients is empty, then the first initialization is
             if (CollectionUtils.isEmpty(typedClients)) {
                 typedClients = buildReferenceCountExchangeClientList(url, connectNum);
-            } else {
+            }
+
+            // 如果不为空，说明集合中可能有某些共享客户端不可用，需要替换掉哪些客户端
+            else {
                 for (int i = 0; i < typedClients.size(); i++) {
                     ReferenceCountExchangeClient referenceCountExchangeClient = typedClients.get(i);
+
+                    // 客户端为空，或连接已关闭，需要新建一个客户端替换
                     // If there is a client in the list that is no longer available, create a new one to replace him.
                     if (referenceCountExchangeClient == null || referenceCountExchangeClient.isClosed()) {
                         typedClients.set(i, buildReferenceCountExchangeClient(url));
                         continue;
                     }
+
+                    // 客户端被使用计数自增
                     referenceCountExchangeClient.incrementAndGetCount();
                 }
             }
         } finally {
             synchronized (referenceClientMap) {
+
+                // 移除或更新共享客户端集合
                 if (typedClients == null) {
                     referenceClientMap.remove(key);
                 } else {
                     referenceClientMap.put(key, typedClients);
                 }
+
+                // 通知所有休眠的线程
                 referenceClientMap.notifyAll();
             }
         }
+
+        // 返回共享客户端
         return typedClients;
 
     }
@@ -618,9 +673,11 @@ public class DubboProtocol extends AbstractProtocol {
         }
 
         for (ReferenceCountExchangeClient referenceCountExchangeClient : referenceCountExchangeClients) {
+
+            // Client为空，引用此处小于等于0，或连接关闭，都代表当前Client不可用     todo 引用次数小于等于0为什么代表Client不可用，是有什么特殊的链路吗？
             // As long as one client is not available, you need to replace the unavailable client with the available one.
-            if (referenceCountExchangeClient == null || referenceCountExchangeClient.getCount() <= 0 ||
-                    referenceCountExchangeClient.isClosed()) {
+            if (referenceCountExchangeClient == null || referenceCountExchangeClient.getCount() <= 0
+                || referenceCountExchangeClient.isClosed()) {
                 return false;
             }
         }
@@ -629,6 +686,8 @@ public class DubboProtocol extends AbstractProtocol {
     }
 
     /**
+     * 增加{@link ReferenceCountExchangeClient}中的引用计数
+     * <p>
      * Increase the reference Count if we create new invoker shares same connection, the connection will be closed without any reference.
      *
      * @param referenceCountExchangeClients
@@ -638,8 +697,11 @@ public class DubboProtocol extends AbstractProtocol {
             return;
         }
 
+        // 循环client
         for (ReferenceCountExchangeClient referenceCountExchangeClient : referenceCountExchangeClients) {
             if (referenceCountExchangeClient != null) {
+
+                // 当前Client引用次数自增
                 referenceCountExchangeClient.incrementAndGetCount();
             }
         }
@@ -655,6 +717,7 @@ public class DubboProtocol extends AbstractProtocol {
     private List<ReferenceCountExchangeClient> buildReferenceCountExchangeClientList(URL url, int connectNum) {
         List<ReferenceCountExchangeClient> clients = new ArrayList<>();
 
+        // 创建相应数量的ReferenceCountExchangeClient
         for (int i = 0; i < connectNum; i++) {
             clients.add(buildReferenceCountExchangeClient(url));
         }
@@ -663,14 +726,16 @@ public class DubboProtocol extends AbstractProtocol {
     }
 
     /**
+     * 创建{@link ExchangeClient}，并包装成{@link ReferenceCountExchangeClient}
+     * <p>
      * Build a single client
-     *
-     * @param url
-     * @return
      */
     private ReferenceCountExchangeClient buildReferenceCountExchangeClient(URL url) {
+
+        // 初始化ExchangeClient
         ExchangeClient exchangeClient = initClient(url);
 
+        // 包装成ReferenceCountExchangeClient，新增引用计数功能
         return new ReferenceCountExchangeClient(exchangeClient);
     }
 
@@ -707,7 +772,7 @@ public class DubboProtocol extends AbstractProtocol {
         ExchangeClient client;
         try {
 
-            // 懒加载客户端的实现：只有在第一次请求的时候才会去创建Client，然后连接请求
+            // 懒加载客户端的实现：只有在第一次请求的时候才会去创建Client，创建连接，然后处理请求
             // connection should be lazy
             if (url.getParameter(LAZY_CONNECT_KEY, false)) {
                 client = new LazyConnectExchangeClient(url, requestHandler);
@@ -729,13 +794,18 @@ public class DubboProtocol extends AbstractProtocol {
     @Override
     @SuppressWarnings("unchecked")
     public void destroy() {
+
+        // 循环服务器集合，销毁服务器
         for (String key : new ArrayList<>(serverMap.keySet())) {
+
+            // 从集合中移除当前服务器
             ProtocolServer protocolServer = serverMap.remove(key);
 
             if (protocolServer == null) {
                 continue;
             }
 
+            // 获取其中的RemotingServer
             RemotingServer server = protocolServer.getRemotingServer();
 
             try {
@@ -743,6 +813,9 @@ public class DubboProtocol extends AbstractProtocol {
                     logger.info("Close dubbo server: " + server.getLocalAddress());
                 }
 
+                // 关闭server，server会向连接的客户端发送readonly事件，根据配置判断是否等待客户端响应，然后关闭相关的定时任务（定时重连），关闭处理连接的线程池
+                // exchange层的HeaderExchangeServer：发送readonly事件，等待客户端响应；设置closed状态，关闭定时关闭客户端连接的定时任务；并调用transport层的server实例的close方法
+                // transport层的NettyServer：AbstractServer关闭线程池；关闭对应的NettyChannel，关闭所有客户端连接的channel，关闭Netty相关的线程池
                 server.close(ConfigurationUtils.getServerShutdownTimeout());
 
             } catch (Throwable t) {
@@ -750,6 +823,7 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        // 销毁引用客户端
         for (String key : new ArrayList<>(referenceClientMap.keySet())) {
             Object clients = referenceClientMap.remove(key);
             if (clients instanceof List) {
@@ -759,12 +833,14 @@ public class DubboProtocol extends AbstractProtocol {
                     continue;
                 }
 
+                // 循环销毁客户端：
                 for (ReferenceCountExchangeClient client : typedClients) {
                     closeReferenceCountExchangeClient(client);
                 }
             }
         }
 
+        // 调用父类的destroy方法，销毁refer和export出去的所有相关资源
         super.destroy();
     }
 
@@ -783,6 +859,10 @@ public class DubboProtocol extends AbstractProtocol {
                 logger.info("Close dubbo connect: " + client.getLocalAddress() + "-->" + client.getRemoteAddress());
             }
 
+            // 关闭当前客户端：需要注意，ReferenceCountExchangeClient只有在引用计数真正减到0时，才回去执行close逻辑
+            // exchange层的HeaderExchangeClient：关闭定时任务，关闭ExchangeChannel通道（而ExchangeChannel一般是transport层的Client
+            // 的包装，会联动关闭Client）
+            // transport层的NettyClient：设置关闭状态，从断开连接，并执行具体的断开连接和关闭的操作
             client.close(ConfigurationUtils.getServerShutdownTimeout());
 
             // TODO

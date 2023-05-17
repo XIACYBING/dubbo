@@ -22,6 +22,7 @@ import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.ChannelHandler;
+import org.apache.dubbo.remoting.Client;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.exchange.ExchangeChannel;
 import org.apache.dubbo.remoting.exchange.ExchangeHandler;
@@ -47,6 +48,11 @@ final class HeaderExchangeChannel implements ExchangeChannel {
 
     private static final String CHANNEL_KEY = HeaderExchangeChannel.class.getName() + ".CHANNEL";
 
+    /**
+     * 当前类的所有通道操作都委托给当前{@link #channel}
+     * <p>
+     * 在{@link HeaderExchangeClient}场景，当前{@link #channel}就是{@code transport}层返回的{@link Client}，比如{@link org.apache.dubbo.remoting.transport.netty4.NettyClient}
+     */
     private final Channel channel;
 
     private volatile boolean closed = false;
@@ -184,7 +190,7 @@ final class HeaderExchangeChannel implements ExchangeChannel {
             // graceful close
             DefaultFuture.closeChannel(channel);
 
-            // 关闭通道
+            // 关闭通道，实际上调用的是具体Client的close方法，比如NettyClient.close
             channel.close();
         } catch (Throwable e) {
             logger.warn(e.getMessage(), e);

@@ -26,7 +26,6 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.transport.AbstractClient;
-
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
@@ -138,6 +137,8 @@ public class NettyClient extends AbstractClient {
 
     @Override
     protected void doDisConnect() throws Throwable {
+
+        // 如果channel的连接断开，从channel集合中移除当前channel
         try {
             NettyChannel.removeChannelIfDisconnected(channel);
         } catch (Throwable t) {

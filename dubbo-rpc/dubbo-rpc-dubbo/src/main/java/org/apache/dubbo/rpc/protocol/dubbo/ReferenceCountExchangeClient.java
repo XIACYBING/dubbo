@@ -25,6 +25,7 @@ import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.exchange.ExchangeClient;
 import org.apache.dubbo.remoting.exchange.ExchangeHandler;
+import org.apache.dubbo.rpc.Invoker;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.CompletableFuture;
@@ -35,6 +36,8 @@ import static org.apache.dubbo.remoting.Constants.SEND_RECONNECT_KEY;
 import static org.apache.dubbo.rpc.protocol.dubbo.Constants.LAZY_CONNECT_INITIAL_STATE_KEY;
 
 /**
+ * {@link ExchangeClient}的装饰器，装饰了引用计数的功能，由{@link #referenceCount}维护
+ * <p>
  * dubbo protocol support class.
  */
 @SuppressWarnings("deprecation")
@@ -42,7 +45,17 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     private static final Logger logger = LoggerFactory.getLogger(ReferenceCountExchangeClient.class);
     private final URL url;
+
+    /**
+     * 引用次数：有多少个Invoker在使用当前Client
+     * <p>
+     * 当{@link #referenceCount}降到0时，代表当前没有{@link Invoker}在使用当前连接，则当前连接需关闭
+     */
     private final AtomicInteger referenceCount = new AtomicInteger(0);
+
+    /**
+     * 当前Client被调用关闭方法的次数
+     */
     private final AtomicInteger disconnectCount = new AtomicInteger(0);
     private final Integer maxDisconnectCount = 50;
     private ExchangeClient client;
@@ -160,6 +173,8 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public void close(int timeout) {
+
+        // 引用计数小于等于0，则需要关闭client
         if (referenceCount.decrementAndGet() <= 0) {
             if (timeout == 0) {
                 client.close();
@@ -168,6 +183,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
                 client.close(timeout);
             }
 
+            // 创建“懒”客户端，持有”幽灵连接“，如果当前Client还有被调用，则可继续通过LazyClient恢复与服务器的连接，并提供服务
             replaceWithLazyClient();
         }
     }
@@ -180,23 +196,28 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
     /**
      * when closing the client, the client needs to be set to LazyConnectExchangeClient, and if a new call is made,
      * the client will "resurrect".
-     *
-     * @return
+     * <p>
+     * 添加一个懒加载客户端，如果对当前客户端有新的调用，则会通过{@link LazyConnectExchangeClient}继续提供能力，即”复活“
+     * todo 为啥要有这个？
      */
     private void replaceWithLazyClient() {
+
+        // 在原URL的基础上，添加一些LazyConnectExchangeClient特有的参数
         // this is a defensive operation to avoid client is closed by accident, the initial state of the client is false
         URL lazyUrl = url.addParameter(LAZY_CONNECT_INITIAL_STATE_KEY, Boolean.TRUE)
-                //.addParameter(RECONNECT_KEY, Boolean.FALSE)
-                .addParameter(SEND_RECONNECT_KEY, Boolean.TRUE.toString());
+                         //.addParameter(RECONNECT_KEY, Boolean.FALSE)
+                         .addParameter(SEND_RECONNECT_KEY, Boolean.TRUE.toString());
         //.addParameter(LazyConnectExchangeClient.REQUEST_WITH_WARNING_KEY, true);
 
+        // todo 这个判断的意义是什么？当前方法首次被调用，或第50/100/...次被调用，则打印警告日志？
         if (disconnectCount.getAndIncrement() % maxDisconnectCount == 0) {
-            logger.warn(url.getAddress() + " " + url.getServiceKey() + " safe guard client , should not be called ,must have a bug.");
+            logger.warn(url.getAddress() + " " + url.getServiceKey()
+                + " safe guard client , should not be called ,must have a bug.");
         }
 
-        /**
-         * the order of judgment in the if statement cannot be changed.
-         */
+        // 如果当前client不是LazyConnectExchangeClient，或者client代表的连接已关闭，则需要根据上面的lazyUrl创建一个LazyConnectExchangeClient
+        // 判断的顺序不可修改，如果是LazyConnectExchangeClient的连接被关闭掉，则不处理
+        // the order of judgment in the if statement cannot be changed.
         if (!(client instanceof LazyConnectExchangeClient) || client.isClosed()) {
             client = new LazyConnectExchangeClient(lazyUrl, client.getExchangeHandler());
         }

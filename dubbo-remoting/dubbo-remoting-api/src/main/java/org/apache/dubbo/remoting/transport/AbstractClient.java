@@ -272,6 +272,8 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
     public void disconnect() {
         connectLock.lock();
         try {
+
+            // 关闭通道
             try {
                 Channel channel = getChannel();
                 if (channel != null) {
@@ -280,6 +282,8 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
             } catch (Throwable e) {
                 logger.warn(e.getMessage(), e);
             }
+
+            // 执行子类实现的具体断开连接的方法
             try {
                 doDisConnect();
             } catch (Throwable e) {
@@ -307,30 +311,40 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
 
     @Override
     public void close() {
+
+        // 已关闭的不处理
         if (isClosed()) {
-            logger.warn("No need to close connection to server " + getRemoteAddress() + " from " + getClass().getSimpleName() + " " + NetUtils.getLocalHost() + " using dubbo version " + Version.getVersion() + ", cause: the client status is closed.");
+            logger.warn(
+                "No need to close connection to server " + getRemoteAddress() + " from " + getClass().getSimpleName()
+                    + " " + NetUtils.getLocalHost() + " using dubbo version " + Version.getVersion()
+                    + ", cause: the client status is closed.");
             return;
         }
 
         connectLock.lock();
         try {
             if (isClosed()) {
-                logger.warn("No need to close connection to server " + getRemoteAddress() + " from " + getClass().getSimpleName() + " " + NetUtils.getLocalHost() + " using dubbo version " + Version.getVersion() + ", cause: the client status is closed.");
+                logger.warn("No need to close connection to server " + getRemoteAddress() + " from "
+                    + getClass().getSimpleName() + " " + NetUtils.getLocalHost() + " using dubbo version "
+                    + Version.getVersion() + ", cause: the client status is closed.");
                 return;
             }
 
+            // 调用父类处理关闭事项：实际上是设置closed状态
             try {
                 super.close();
             } catch (Throwable e) {
                 logger.warn(e.getMessage(), e);
             }
 
+            // 断开连接
             try {
                 disconnect();
             } catch (Throwable e) {
                 logger.warn(e.getMessage(), e);
             }
 
+            // 执行子类具体的关闭逻辑
             try {
                 doClose();
             } catch (Throwable e) {

@@ -39,6 +39,8 @@ import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DEFAULT_LAZY_CONNECT
 import static org.apache.dubbo.rpc.protocol.dubbo.Constants.LAZY_CONNECT_INITIAL_STATE_KEY;
 
 /**
+ * {@link ExchangeClient}的装饰器，装饰懒加载的能力，只有在当前client被使用时，才会通过{@link #initClient()}初始化客户端连接
+ * <p>
  * dubbo protocol support class.
  */
 @SuppressWarnings("deprecation")
@@ -69,18 +71,27 @@ final class LazyConnectExchangeClient implements ExchangeClient {
         this.requestWithWarning = url.getParameter(REQUEST_WITH_WARNING_KEY, false);
     }
 
+    /**
+     * 初始化客户端连接
+     */
     private void initClient() throws RemotingException {
+
+        // 已经初始化过，则不处理
         if (client != null) {
             return;
         }
         if (logger.isInfoEnabled()) {
             logger.info("Lazy connect to " + url);
         }
+
+        // 加锁，Double Check
         connectLock.lock();
         try {
             if (client != null) {
                 return;
             }
+
+            // 与服务器连接，并生成客户端
             this.client = Exchangers.connect(url, requestHandler);
         } finally {
             connectLock.unlock();
@@ -130,6 +141,10 @@ final class LazyConnectExchangeClient implements ExchangeClient {
     }
 
     /**
+     * 如果配置了相关属性，则打印警告日志，并且会根据{@link #warning_period}限制日志打印频率
+     * <p>
+     * todo 为啥LazyClient需要打印警告日志？
+     * <p>
      * If {@link #REQUEST_WITH_WARNING_KEY} is configured, then warn once every 5000 invocations.
      */
     private void warning() {
