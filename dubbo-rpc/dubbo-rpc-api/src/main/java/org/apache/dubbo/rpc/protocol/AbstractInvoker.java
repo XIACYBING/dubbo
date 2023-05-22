@@ -50,7 +50,7 @@ import static org.apache.dubbo.remoting.Constants.SERIALIZATION_KEY;
 import static org.apache.dubbo.rpc.Constants.SERIALIZATION_ID_KEY;
 
 /**
- * {@link Invoker}的抽象实现
+ * {@link Invoker}的抽象实现，提供{@link #attachment}等属性的管理方法，以及{@link #invoke(Invocation)}方法的通用实现，并提供{@link #doInvoke(Invocation)}方法给子类实现具体的invoke逻辑
  * <p>
  * This Invoker works on Consumer side.
  */
@@ -230,18 +230,24 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
             asyncResult = AsyncRpcResult.newDefaultAsyncResult(null, e, invocation);
         }
 
+        // asyncResult.getResponseFuture()获取到的一般是在HeaderExchangeChannel中构造的DefaultFuture
         // 包装asyncResult为Future，如果调用模式是FUTURE，或外部需要返回Future类型的数据，则直接将此处设置的Future返回
+        // 在AsyncRpcResult.recreate会对当前设置的结果进行获取
         RpcContext.getContext().setFuture(new FutureAdapter(asyncResult.getResponseFuture()));
         return asyncResult;
     }
 
+    /**
+     * 根据调用模式获取回调处理的线程池
+     */
     protected ExecutorService getCallbackExecutor(URL url, Invocation inv) {
 
         // 获取共享线程池
         ExecutorService sharedExecutor =
             ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension().getExecutor(url);
 
-        // 如果当前调用模式是sync/同步，则使用ThreadlessExecutor包装线程池，这会让响应被提交到ThreadlessExecutor，并由当前线程来处理响应
+        // 如果当前调用模式是SYNC/同步，则使用ThreadlessExecutor包装线程池，这会让响应被提交到ThreadlessExecutor，并由当前线程来处理响应
+        // SYNC模式下，consumer发起请求后就会通过ThreadlessExecutor线程池阻塞等待响应的返回，阻塞的核心在于ThreadlessExecutor.waitAndDrain()
         if (InvokeMode.SYNC == RpcUtils.getInvokeMode(getUrl(), inv)) {
             return new ThreadlessExecutor(sharedExecutor);
         } else {

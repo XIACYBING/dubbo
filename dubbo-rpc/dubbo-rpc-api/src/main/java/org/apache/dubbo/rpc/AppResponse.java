@@ -30,6 +30,8 @@ import java.util.function.Function;
 import static org.apache.dubbo.rpc.Constants.INVOCATION_KEY;
 
 /**
+ * 响应结果，由provider返回，通过{@link #result}记录具体的业务方法调用的返回值
+ * <p>
  * {@link AsyncRpcResult} is introduced in 3.0.0 to replace RpcResult, and RpcResult is replaced with {@link AppResponse}:
  * <ul>
  *     <li>AsyncRpcResult is the object that is actually passed in the call chain</li>
@@ -52,10 +54,19 @@ public class AppResponse implements Result {
 
     private static final long serialVersionUID = -6925924956850004727L;
 
+    /**
+     * 服务端返回的结果，是具体的方法被调用后返回的结果
+     */
     private Object result;
 
+    /**
+     * 服务端返回的异常信息
+     */
     private Throwable exception;
 
+    /**
+     * 服务端返回的附件信息
+     */
     private Map<String, Object> attachments = new HashMap<>();
 
     private Map<String, Object> attributes = new HashMap<>();

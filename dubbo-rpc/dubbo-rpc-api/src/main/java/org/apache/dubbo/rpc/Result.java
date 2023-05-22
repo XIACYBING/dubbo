@@ -84,7 +84,7 @@ public interface Result extends Serializable {
 
     /**
      * 重现调用，一般在消费者获取结果时使用：如果对提供者调用时发生异常，则抛出异常，如果没有，则正常返回结果
-     *
+     * <p>
      * Recreate.
      * <p>
      * <code>

@@ -49,6 +49,11 @@ public interface Filter {
      */
     Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException;
 
+    /**
+     * {@link Filter}接口内部的{@link Listener}，主要是对每次Rpc请求进行监听
+     * <p>
+     * 过滤器通过实现{@link ListenableFilter}来维护{@link Listener}
+     */
     interface Listener {
 
         void onResponse(Result appResponse, Invoker<?> invoker, Invocation invocation);

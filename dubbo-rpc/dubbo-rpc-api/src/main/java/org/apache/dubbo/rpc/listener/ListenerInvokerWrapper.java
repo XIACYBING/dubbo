@@ -25,10 +25,16 @@ import org.apache.dubbo.rpc.Invoker;
 import org.apache.dubbo.rpc.InvokerListener;
 import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
+import org.apache.dubbo.rpc.protocol.ProtocolListenerWrapper;
 
 import java.util.List;
 
 /**
+ * {@link Invoker}的装饰器，作用在{@link ProtocolListenerWrapper#refer(Class, URL)}方法上，将{@link org.apache.dubbo.rpc.Protocol#refer}的结果包装为{@link ListenerInvokerWrapper}，
+ * 并在构造器{@link #ListenerInvokerWrapper(Invoker, List)}中对监听器{@link #listeners}进行{@code refer}操作的通知
+ * <p>
+ * {@link #destroy()}方法中也会发布{@link Invoker#destroy()}操作的通知
+ * <p>
  * ListenerInvoker
  */
 public class ListenerInvokerWrapper<T> implements Invoker<T> {
@@ -45,6 +51,8 @@ public class ListenerInvokerWrapper<T> implements Invoker<T> {
         }
         this.invoker = invoker;
         this.listeners = listeners;
+
+        // 通知监听器，对应的invoker进行了refer操作
         if (CollectionUtils.isNotEmpty(listeners)) {
             for (InvokerListener listener : listeners) {
                 if (listener != null) {

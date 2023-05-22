@@ -37,6 +37,10 @@ import static org.apache.dubbo.common.constants.CommonConstants.EXPORTER_LISTENE
 import static org.apache.dubbo.common.constants.CommonConstants.INVOKER_LISTENER_KEY;
 
 /**
+ * {@link Protocol}的装饰器，包装了监听器的相关功能，其实主要时对原有的{@link #export}和{@link #refer}方法包装了发布通知的功能
+ * <p>
+ * 基于{@link ExtensionLoader}获取{@link #export}和{@link #refer}操作的监听器扩展集合，并包装成{@link ListenerExporterWrapper}和{@link ListenerInvokerWrapper}，在相应的构造器中实现通知发布的功能
+ * <p>
  * ListenerProtocol
  */
 @Activate(order = 200)
@@ -61,9 +65,11 @@ public class ProtocolListenerWrapper implements Protocol {
         if (UrlUtils.isRegistry(invoker.getUrl())) {
             return protocol.export(invoker);
         }
-        return new ListenerExporterWrapper<T>(protocol.export(invoker),
-                Collections.unmodifiableList(ExtensionLoader.getExtensionLoader(ExporterListener.class)
-                        .getActivateExtension(invoker.getUrl(), EXPORTER_LISTENER_KEY)));
+
+        // 在构造器中发布export通知
+        return new ListenerExporterWrapper<T>(protocol.export(invoker), Collections.unmodifiableList(
+            ExtensionLoader.getExtensionLoader(ExporterListener.class)
+                           .getActivateExtension(invoker.getUrl(), EXPORTER_LISTENER_KEY)));
     }
 
     @Override
@@ -71,10 +77,10 @@ public class ProtocolListenerWrapper implements Protocol {
         if (UrlUtils.isRegistry(url)) {
             return protocol.refer(type, url);
         }
-        return new ListenerInvokerWrapper<T>(protocol.refer(type, url),
-                Collections.unmodifiableList(
-                        ExtensionLoader.getExtensionLoader(InvokerListener.class)
-                                .getActivateExtension(url, INVOKER_LISTENER_KEY)));
+
+        // 在构造器中发布refer通知
+        return new ListenerInvokerWrapper<T>(protocol.refer(type, url), Collections.unmodifiableList(
+            ExtensionLoader.getExtensionLoader(InvokerListener.class).getActivateExtension(url, INVOKER_LISTENER_KEY)));
     }
 
     @Override

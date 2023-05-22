@@ -19,6 +19,7 @@ package org.apache.dubbo.rpc;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.threadpool.ThreadlessExecutor;
+import org.apache.dubbo.remoting.exchange.support.DefaultFuture;
 import org.apache.dubbo.rpc.model.ConsumerMethodModel;
 
 import java.util.Map;
@@ -33,6 +34,8 @@ import java.util.function.Function;
 import static org.apache.dubbo.common.utils.ReflectUtils.defaultReturn;
 
 /**
+ * 一个异步的，未完成的Rpc调用的结果，会记录当前Rpc调用的相关信息
+ * <p>
  * This class represents an unfinished RPC call, it will hold some context information for this call, for example RpcContext and Invocation,
  * so that when the call finishes and the result returns, it can guarantee all the contexts being recovered as the same as when the call was made
  * before any callback is invoked.
@@ -50,20 +53,38 @@ public class AsyncRpcResult implements Result {
     private static final Logger logger = LoggerFactory.getLogger(AsyncRpcResult.class);
 
     /**
+     * Rpc调用过程中的{@link RpcContext}是绑定在线程上的，而线程在整个系统中是共用的，因此对于异步调用来说，需要将上下文信息{@link RpcContext}存储起来，以防被修改掉，
+     * 而绑定在线程上的{@link RpcContext}，则会在{@link org.apache.dubbo.rpc.filter.ContextFilter}中通过{@link RpcContext#removeContext}移除掉
+     * <p>
      * RpcContext may already have been changed when callback happens, it happens when the same thread is used to execute another RPC call.
      * So we should keep the reference of current RpcContext instance and restore it before callback being executed.
      */
     private RpcContext storedContext;
+
+    /**
+     * 和{@link #storedContext}同理
+     */
     private RpcContext storedServerContext;
+
+    /**
+     * 本次Rpc调用关联的线程池
+     */
     private Executor executor;
 
     private Invocation invocation;
 
+    /**
+     * 具体等待结果的{@link CompletableFuture}，类型一般是{@link DefaultFuture}
+     * <p>
+     * 对当前{@link AsyncRpcResult}附加的相关回调操作，最终其实都是添加到{@link #responseFuture}
+     */
     private CompletableFuture<AppResponse> responseFuture;
 
     public AsyncRpcResult(CompletableFuture<AppResponse> future, Invocation invocation) {
         this.responseFuture = future;
         this.invocation = invocation;
+
+        // 存储RpcContext
         this.storedContext = RpcContext.getContext();
         this.storedServerContext = RpcContext.getServerContext();
     }
@@ -168,10 +189,14 @@ public class AsyncRpcResult implements Result {
      */
     @Override
     public Result get() throws InterruptedException, ExecutionException {
+
+        // 如果线程池是ThreadlessExecutor，则需要将其所有任务先执行完
         if (executor != null && executor instanceof ThreadlessExecutor) {
-            ThreadlessExecutor threadlessExecutor = (ThreadlessExecutor) executor;
+            ThreadlessExecutor threadlessExecutor = (ThreadlessExecutor)executor;
             threadlessExecutor.waitAndDrain();
         }
+
+        // 从响应future中获取响应：其实是等待HeaderExchangeHandler接收Response，并将Response设置到responseFuture中
         return responseFuture.get();
     }
 
@@ -200,15 +225,23 @@ public class AsyncRpcResult implements Result {
         }
 
         // 获取实际的响应结果：getAppResponse返回DefaultFuture中get的结果（DecodeableRpcResult），recreate（走的是DecodeableRpcResult
-        // 的父类AppResponse的实现）则会将异常抛出（如果有），或结果返回
+        // 的父类AppResponse的实现）则会将异常抛出（如果有），或将结果返回
         return getAppResponse().recreate();
     }
 
     @Override
     public Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn) {
+
+        // 添加回调方法
         this.responseFuture = this.responseFuture.whenComplete((v, t) -> {
+
+            // 设置RpcContext
             beforeContext.accept(v, t);
+
+            // 应用回调
             fn.accept(v, t);
+
+            // 恢复RpcContext
             afterContext.accept(v, t);
         });
         return this;
@@ -295,11 +328,20 @@ public class AsyncRpcResult implements Result {
     }
 
     /**
+     * 当进行回调时，可能需要记录当前线程上已有的{@link RpcContext}，就记录在{@link #tmpContext}和{@link #tmpServerContext}s
+     * <p>
      * tmp context to use when the thread switch to Dubbo thread.
      */
     private RpcContext tmpContext;
 
+    /**
+     * 同{@link #tmpContext}
+     */
     private RpcContext tmpServerContext;
+
+    /**
+     * 用来记录当前线程的{@link RpcContext}，并应用当前Rpc调用时的{@link RpcContext}：{@link #storedContext}和{@link #storedServerContext}
+     */
     private BiConsumer<Result, Throwable> beforeContext = (appResponse, t) -> {
         tmpContext = RpcContext.getContext();
         tmpServerContext = RpcContext.getServerContext();
@@ -307,6 +349,11 @@ public class AsyncRpcResult implements Result {
         RpcContext.restoreServerContext(storedServerContext);
     };
 
+    /**
+     * 恢复原线程的{@link RpcContext}
+     *
+     * @see #beforeContext
+     */
     private BiConsumer<Result, Throwable> afterContext = (appResponse, t) -> {
         RpcContext.restoreContext(tmpContext);
         RpcContext.restoreServerContext(tmpServerContext);

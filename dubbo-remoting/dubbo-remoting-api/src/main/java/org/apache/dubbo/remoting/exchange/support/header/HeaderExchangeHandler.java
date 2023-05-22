@@ -244,6 +244,10 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
                 }
 
                 // 无需返回响应，则只是接收数据(单向)
+                // 由上层实现的ExchangeHandler来处理请求
+                // 比如DubboProtocol的内部属性requestHandler（ExchangeHandlerAdapter的实现类）
+
+                // todo 单向请求如果解码失败，此处的data会是throwable类型，然后在reply方法中直接抛出异常，但是解码的异常会被丢弃掉，这是否合理，应该要让provider感知到为什么解码失败会比较合理吧？
                 else {
                     handler.received(exchangeChannel, request.getData());
                 }

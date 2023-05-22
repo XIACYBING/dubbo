@@ -22,10 +22,15 @@ import org.apache.dubbo.common.utils.CollectionUtils;
 import org.apache.dubbo.rpc.Exporter;
 import org.apache.dubbo.rpc.ExporterListener;
 import org.apache.dubbo.rpc.Invoker;
+import org.apache.dubbo.rpc.protocol.ProtocolListenerWrapper;
 
 import java.util.List;
 
 /**
+ * {@link Exporter}的装饰器，作用在{@link ProtocolListenerWrapper#export(Invoker)}方法上，将{@link org.apache.dubbo.rpc.Protocol#export}的结果包装为{@link ListenerExporterWrapper}，
+ * 并在构造器{@link #ListenerExporterWrapper(Exporter, List)}中对监听器{@link #listeners}进行{@code export}操作的通知
+ * <p>
+ * {@link #unexport()}方法中也会发布{@link Exporter#unexport()}操作的通知
  * ListenerExporter
  */
 public class ListenerExporterWrapper<T> implements Exporter<T> {
@@ -42,6 +47,8 @@ public class ListenerExporterWrapper<T> implements Exporter<T> {
         }
         this.exporter = exporter;
         this.listeners = listeners;
+
+        // 通知监听器，对应的invoker进行了export操作
         if (CollectionUtils.isNotEmpty(listeners)) {
             RuntimeException exception = null;
             for (ExporterListener listener : listeners) {

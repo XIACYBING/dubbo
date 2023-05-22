@@ -34,6 +34,9 @@ import static org.apache.dubbo.common.constants.CommonConstants.REFERENCE_FILTER
 import static org.apache.dubbo.common.constants.CommonConstants.SERVICE_FILTER_KEY;
 
 /**
+ * {@link Protocol}的装饰器，包装了过滤器的相关功能，基于{@link #buildInvokerChain(Invoker, String, String)}将入参的{@link Invoker}包装成一个{@link FilterNode}，并在其中维护过滤器链
+ * <p>
+ * todo PR 此处的注释有问题，可以修复
  * ListenerProtocol
  */
 @Activate(order = 100)
@@ -48,13 +51,29 @@ public class ProtocolFilterWrapper implements Protocol {
         this.protocol = protocol;
     }
 
+    /**
+     * 将{@code invoker}和{@link Filter}构造成{@link FilterNode}，并组装成一条过滤器链路
+     * <p>
+     * filter1 -> filter2 -> ... -> filterN -> invoker
+     */
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
+
+        // invoker作为过滤器链的最后一个节点，过滤器结束时会调用对应invoker的invoke方法
         Invoker<T> last = invoker;
-        List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
+
+        // 根据url中的配置信息获取过滤器拓展集合
+        List<Filter> filters =
+            ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
 
         if (!filters.isEmpty()) {
+
+            // 从尾到头循环，包装过滤器成FilterNode
             for (int i = filters.size() - 1; i >= 0; i--) {
+
+                // 获取当前过滤器
                 final Filter filter = filters.get(i);
+
+                // 将invoker、last（上一节点）和filter作为构造器参数传入
                 last = new FilterNode<T>(invoker, last, filter);
             }
         }
@@ -69,17 +88,25 @@ public class ProtocolFilterWrapper implements Protocol {
 
     @Override
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
+
+        // 注册中心不处理过滤器
         if (UrlUtils.isRegistry(invoker.getUrl())) {
             return protocol.export(invoker);
         }
+
+        // 通过buildInvokerChain构造过滤器链路，并将结果传入protocol.export中
         return protocol.export(buildInvokerChain(invoker, SERVICE_FILTER_KEY, CommonConstants.PROVIDER));
     }
 
     @Override
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
+
+        // 注册中心不处理过滤器
         if (UrlUtils.isRegistry(url)) {
             return protocol.refer(type, url);
         }
+
+        // 通过protocol.refer获取结果的invoker，并通过buildInvokerChain构造成一条过滤器链
         return buildInvokerChain(protocol.refer(type, url), REFERENCE_FILTER_KEY, CommonConstants.CONSUMER);
     }
 

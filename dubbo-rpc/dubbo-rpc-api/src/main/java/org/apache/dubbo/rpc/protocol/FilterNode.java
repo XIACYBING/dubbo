@@ -25,8 +25,11 @@ import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
 
 /**
- * @see org.apache.dubbo.rpc.protocol.ProtocolFilterWrapper
+ * 过滤器节点，实际的{@link #invoker}将作为过滤器链路的最后一个节点，也就是过滤器链路的最后一个节点中，{@link #invoker}等于{@link #next}
+ * <p>
+ * filter1 -> filter2 -> ... -> filterN -> invoker
  *
+ * @see org.apache.dubbo.rpc.protocol.ProtocolFilterWrapper
  */
 class FilterNode<T> implements Invoker<T>{
     private final Invoker<T> invoker;

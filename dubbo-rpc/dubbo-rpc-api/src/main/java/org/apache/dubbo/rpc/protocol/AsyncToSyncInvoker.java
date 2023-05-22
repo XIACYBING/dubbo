@@ -30,6 +30,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * {@link Invoker}的装饰器，负责将异步调用转换为同步调用：底层都是基于异步调用去处理的，而当前装饰器负责的就是在调用模式为同步时，
+ * 将调用结果通过{@link Result#get}方法获取到，从而让整个流程变为同步的流程
+ * <p>
  * This class will work as a wrapper wrapping outside of each protocol invoker.
  *
  * @param <T>
@@ -63,6 +66,8 @@ public class AsyncToSyncInvoker<T> implements Invoker<T> {
                  * NOTICE!
                  * must call {@link java.util.concurrent.CompletableFuture#get(long, TimeUnit)} because
                  * {@link java.util.concurrent.CompletableFuture#get()} was proved to have serious performance drop.
+                 * <p>
+                 * {@link java.util.concurrent.CompletableFuture#get()}有严重的性能流失？
                  */
                 asyncResult.get(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
             }

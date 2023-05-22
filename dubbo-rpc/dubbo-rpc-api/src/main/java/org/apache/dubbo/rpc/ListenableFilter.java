@@ -20,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
+ * 维护着监听器集合的过滤器抽象实现，通过维护{@link #listeners}集合去在每次过滤器过滤后进行{@link Filter.Listener#onError(Throwable, Invoker, Invocation)}和{@link Filter.Listener#onResponse(Result, Invoker, Invocation)}监听
+ * <p>
  * It's recommended to implement Filter.Listener directly for callback registration, check the default implementation,
  * see {@link org.apache.dubbo.rpc.filter.ExceptionFilter}, for example.
  * <p>
@@ -29,6 +31,10 @@ import java.util.concurrent.ConcurrentMap;
 public abstract class ListenableFilter implements Filter {
 
     protected Listener listener = null;
+
+    /**
+     * 监听器集合
+     */
     protected final ConcurrentMap<Invocation, Listener> listeners = new ConcurrentHashMap<>();
 
     public Listener listener() {

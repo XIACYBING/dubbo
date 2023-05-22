@@ -105,9 +105,11 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         try {
 
             // 是否单向请求：true/单向请求
+            // 单向请求在链路上调用的是send相关的方法，非单向请求则是调用request相关的方法，并且在HeaderExchangeChannel创建DefaultFuture并返回，在HeaderExchangeChannel之后的链路也是调用send方法
+            // 相应的，在数据接收处理器HeaderExchangeHandler中，对于单向请求，只是调用receive方法处理，不会有返回值，而对于非单向请求，则会调用handleRequest方法处理并生成Response返回给请求方
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
 
-            // 记录超时时间
+            // 计算超时时间
             int timeout = calculateTimeout(invocation, methodName);
             invocation.put(TIMEOUT_KEY, timeout);
 
@@ -115,9 +117,14 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
             // oneway：单项通讯，客户端发起请求后不需要等待服务端的响应，也不会接收到服务端的响应，适用于不需要返回结果，只需要服务端接收请求并处理的场景
             if (isOneway) {
 
-                // 无需关注返回值，发起请求即可
+                // isSent为true，代表需要等待发送完成，为false则代表发送请求发起后即可返回
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
+
+                // ReferenceCountExchangeClient.send -> HeaderExchangeClient.send
+                // -> HeaderExchangeChannel.send -> netty4的NettyClient.send
                 currentClient.send(inv, isSent);
+
+                // 新建并返回一个异步请求结果，其中的responseFuture是已完成状态（非单向请求的responseFuture是响应处理完成后设置成已完成状态）
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);
             }
 
@@ -127,6 +134,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
                 // 根据提供者url和invocation获取线程池，线程池将用于响应的回调处理
                 ExecutorService executor = getCallbackExecutor(getUrl(), inv);
 
+                // appResponseFuture的类型一般是DefaultFuture，在HeaderExchangeChannel.request中构造
                 // 调用ExchangeClient发送请求，并在完成后将结果强转为AppResponse
                 CompletableFuture<AppResponse> appResponseFuture =
 
@@ -143,7 +151,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
                 // save for 2.6.x compatibility, for example, TraceFilter in Zipkin uses com.alibaba.xxx.FutureAdapter
                 FutureContext.getContext().setCompatibleFuture(appResponseFuture);
 
-                // 包装appResponseFuture为AsyncRpcResult，并关联线程池，对外返回，线程池会被用来执行某些检查，比如请求后的超时检查等...
+                // 包装appResponseFuture（DefaultFuture）为AsyncRpcResult，并关联线程池，对外返回，线程池会被用来执行某些检查，比如请求后的超时检查等...
                 AsyncRpcResult result = new AsyncRpcResult(appResponseFuture, inv);
                 result.setExecutor(executor);
                 return result;

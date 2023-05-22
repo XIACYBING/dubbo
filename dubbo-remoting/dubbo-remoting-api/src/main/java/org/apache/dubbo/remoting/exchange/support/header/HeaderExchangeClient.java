@@ -161,6 +161,7 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     @Override
     public void send(Object message, boolean sent) throws RemotingException {
+        // HeaderExchangeChannel.send：发送请求，但是无需处理响应
         channel.send(message, sent);
     }
 

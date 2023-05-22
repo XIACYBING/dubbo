@@ -17,6 +17,7 @@
 package org.apache.dubbo.remoting.transport.dispatcher.all;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.threadpool.ThreadlessExecutor;
 import org.apache.dubbo.remoting.Channel;
 import org.apache.dubbo.remoting.ChannelHandler;
 import org.apache.dubbo.remoting.ExecutionException;
@@ -32,7 +33,7 @@ import java.util.concurrent.RejectedExecutionException;
 /**
  * 消息调度器返回的默认的{@link WrappedChannelHandler}
  * <p>
- * 会将除了{@link #sent(Channel, Object)}方法外的其他逻辑提交到{@link #getExecutorService()}获取的线程池中执行
+ * 会将除了{@link #sent(Channel, Object)}方法外的其他逻辑提交到{@link #getExecutorService()}获取的线程池（比如响应处理时会使用关联的{@link ThreadlessExecutor}来处理）中执行
  */
 public class AllChannelHandler extends WrappedChannelHandler {
 

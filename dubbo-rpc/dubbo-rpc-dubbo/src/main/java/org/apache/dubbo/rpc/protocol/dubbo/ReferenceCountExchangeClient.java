@@ -150,6 +150,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public void send(Object message, boolean sent) throws RemotingException {
+        // 发送请求，但无需处理响应
         client.send(message, sent);
     }
 

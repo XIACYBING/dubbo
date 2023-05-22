@@ -255,14 +255,23 @@ public class RpcUtils {
         }
     }
 
+    /**
+     * 计算当前请求是否单向请求
+     */
     public static boolean isOneway(URL url, Invocation inv) {
         boolean isOneway;
         String config;
+
+        // Invocation对当前方法，或有return配置，则根据return配置判断当前是否单向请求
+        // return配置为true，代表需要处理返回值，非单向请求；return配置为false，代表当前无需处理返回值，是单向请求
         if ((config = inv.getAttachment(getMethodName(inv) + DOT_SEPARATOR + RETURN_KEY)) != null) {
             isOneway = !Boolean.valueOf(config);
         } else if ((config = inv.getAttachment(RETURN_KEY)) != null) {
             isOneway = !Boolean.valueOf(config);
-        } else {
+        }
+
+        // 否则关注方法配置中的return配置
+        else {
             isOneway = !url.getMethodParameter(getMethodName(inv), RETURN_KEY, true);
         }
         return isOneway;

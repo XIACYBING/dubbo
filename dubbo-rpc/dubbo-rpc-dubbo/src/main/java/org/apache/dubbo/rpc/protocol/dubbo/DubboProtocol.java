@@ -170,10 +170,18 @@ public class DubboProtocol extends AbstractProtocol {
 
         @Override
         public void received(Channel channel, Object message) throws RemotingException {
-            if (message instanceof Invocation) {
-                reply((ExchangeChannel) channel, message);
 
-            } else {
+            // 单向请求最终会由当前链路处理
+
+            // 如果是一次请求，则调用reply方法处理，但是不需要返回值
+            if (message instanceof Invocation) {
+                reply((ExchangeChannel)channel, message);
+
+            }
+
+            // 否则调用父类的数据接收方法处理
+            // ChannelHandlerAdapter.received：只是空实现
+            else {
                 super.received(channel, message);
             }
         }

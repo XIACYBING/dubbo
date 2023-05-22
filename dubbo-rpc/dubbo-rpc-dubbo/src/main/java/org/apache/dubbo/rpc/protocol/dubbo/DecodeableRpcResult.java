@@ -21,6 +21,7 @@ import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.serialize.Cleanable;
 import org.apache.dubbo.common.serialize.ObjectInput;
+import org.apache.dubbo.common.serialize.ObjectOutput;
 import org.apache.dubbo.common.utils.ArrayUtils;
 import org.apache.dubbo.common.utils.Assert;
 import org.apache.dubbo.common.utils.StringUtils;
@@ -43,6 +44,9 @@ import java.lang.reflect.Type;
 import static org.apache.dubbo.rpc.Constants.SERIALIZATION_ID_KEY;
 import static org.apache.dubbo.rpc.Constants.SERIALIZATION_SECURITY_CHECK_KEY;
 
+/**
+ * 和{@link DecodeableRpcInvocation}代表请求相对应，当前类代表可解码的响应
+ */
 public class DecodeableRpcResult extends AppResponse implements Codec, Decodeable {
 
     private static final Logger log = LoggerFactory.getLogger(DecodeableRpcResult.class);
@@ -80,6 +84,9 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * 解码响应，{@link DubboCodec#encodeResponseData(Channel, ObjectOutput, Object, String)}的逆向操作
+     */
     @Override
     public Object decode(Channel channel, InputStream input) throws IOException {
         if (log.isDebugEnabled()) {
@@ -87,36 +94,51 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
             log.debug("Decoding in thread -- [" + thread.getName() + "#" + thread.getId() + "]");
         }
 
-        ObjectInput in = CodecSupport.getSerialization(channel.getUrl(), serializationType)
-                .deserialize(channel.getUrl(), input);
+        // 根据序列化类型将字节输入流包装成具体的对象输入流，用来反序列化字节输入流
+        ObjectInput in =
+            CodecSupport.getSerialization(channel.getUrl(), serializationType).deserialize(channel.getUrl(), input);
 
         // 根据响应状态进行不同的解码操作
         byte flag = in.readByte();
         switch (flag) {
             case DubboCodec.RESPONSE_NULL_VALUE:
                 break;
+
+            // 处理响应结果
             case DubboCodec.RESPONSE_VALUE:
                 handleValue(in);
                 break;
+
+            // 处理异常信息
             case DubboCodec.RESPONSE_WITH_EXCEPTION:
                 handleException(in);
                 break;
+
+            // 响应结果为空，但是携带有附件信息
             case DubboCodec.RESPONSE_NULL_VALUE_WITH_ATTACHMENTS:
                 handleAttachment(in);
                 break;
+
+            // 有响应结果，且有附件信息
             case DubboCodec.RESPONSE_VALUE_WITH_ATTACHMENTS:
                 handleValue(in);
                 handleAttachment(in);
                 break;
+
+            // 有异常，且有附件信息
             case DubboCodec.RESPONSE_WITH_EXCEPTION_WITH_ATTACHMENTS:
                 handleException(in);
                 handleAttachment(in);
                 break;
+
+            // 未知类型，抛出异常
             default:
                 throw new IOException("Unknown result flag, expect '0' '1' '2' '3' '4' '5', but received: " + flag);
         }
+
+        // 进行某些资源清理工作
         if (in instanceof Cleanable) {
-            ((Cleanable) in).cleanup();
+            ((Cleanable)in).cleanup();
         }
         return this;
     }
@@ -146,11 +168,16 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         }
     }
 
+    /**
+     * 处理响应结果
+     *
+     * @param in 字节输入流
+     */
     private void handleValue(ObjectInput in) throws IOException {
         try {
             Type[] returnTypes;
             if (invocation instanceof RpcInvocation) {
-                returnTypes = ((RpcInvocation) invocation).getReturnTypes();
+                returnTypes = ((RpcInvocation)invocation).getReturnTypes();
             } else {
                 returnTypes = RpcUtils.getReturnTypes(invocation);
             }
