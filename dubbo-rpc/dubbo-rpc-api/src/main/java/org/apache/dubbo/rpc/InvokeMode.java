@@ -16,6 +16,8 @@
  */
 package org.apache.dubbo.rpc;
 
+import org.apache.dubbo.remoting.exchange.support.DefaultFuture;
+
 import java.util.concurrent.Future;
 
 public enum InvokeMode {
@@ -31,7 +33,7 @@ public enum InvokeMode {
     ASYNC,
 
     /**
-     * {@link Future}调用
+     * {@link Future}调用，会将承载结果的{@link DefaultFuture}直接返回给外部
      */
     FUTURE;
 

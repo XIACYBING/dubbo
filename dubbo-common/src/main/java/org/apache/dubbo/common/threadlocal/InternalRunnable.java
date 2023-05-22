@@ -19,6 +19,9 @@ package org.apache.dubbo.common.threadlocal;
 
 
 /**
+ * {@link InternalRunnable}一般配合{@link NamedInternalThreadFactory#newThread}使用，通过{@link NamedInternalThreadFactory}
+ * 生成的线程，在线程执行结束后，都需要调用{@link InternalThreadLocal#removeAll()}把线程上关联的{@link InternalThreadLocal}变量数据移除
+ * <p>
  * InternalRunnable
  * There is a risk of memory leak when using {@link InternalThreadLocal} without calling
  * {@link InternalThreadLocal#removeAll()}.
@@ -40,6 +43,8 @@ public class InternalRunnable implements Runnable{
         try{
             runnable.run();
         }finally {
+
+            // 任务执行完成后，移除线程上关联的所有InternalThreadLocal变量，释放内存
             InternalThreadLocal.removeAll();
         }
     }

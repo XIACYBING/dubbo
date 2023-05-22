@@ -45,6 +45,8 @@ import static org.apache.dubbo.rpc.Constants.RETURN_KEY;
 
 
 /**
+ * 线程级别的Rpc上下文，发起请求，或者接收响应时，会使用当前上下文承载一些信息
+ * <p>
  * Thread local context. (API, ThreadLocal, ThreadSafe)
  * <p>
  * Note: RpcContext is a temporary state holder. States in RpcContext changes every time when request is sent or received.
@@ -57,9 +59,12 @@ import static org.apache.dubbo.rpc.Constants.RETURN_KEY;
 public class RpcContext {
 
     /**
+     * 请求上下文，当发起请求时，向{@link #LOCAL}填充信息
+     * <p>
      * use internal thread local to improve performance
+     * <p>
+     * FIXME REQUEST_CONTEXT
      */
-    // FIXME REQUEST_CONTEXT
     private static final InternalThreadLocal<RpcContext> LOCAL = new InternalThreadLocal<RpcContext>() {
         @Override
         protected RpcContext initialValue() {
@@ -67,7 +72,11 @@ public class RpcContext {
         }
     };
 
-    // FIXME RESPONSE_CONTEXT
+    /**
+     * 响应上下文，接收到请求时，向{@link #SERVER_LOCAL}填充信息
+     * <p>
+     * FIXME RESPONSE_CONTEXT
+     */
     private static final InternalThreadLocal<RpcContext> SERVER_LOCAL = new InternalThreadLocal<RpcContext>() {
         @Override
         protected RpcContext initialValue() {
@@ -75,23 +84,48 @@ public class RpcContext {
         }
     };
 
+    /**
+     * 上下文的附件信息，将会被添加到{@link Invocation}中，并作为协议数据传输到Consumer/Provider
+     */
     protected final Map<String, Object> attachments = new HashMap<>();
+
+    /**
+     * 上下文的一些键值对信息，不会作为协议数据去传输
+     */
     private final Map<String, Object> values = new HashMap<String, Object>();
 
     private List<URL> urls;
 
     private URL url;
 
+    /**
+     * 方法名称，和{@link RpcInvocation}一致
+     */
     private String methodName;
 
+    /**
+     * 参数类型，和{@link RpcInvocation}一致
+     */
     private Class<?>[] parameterTypes;
 
+    /**
+     * 具体参数，和{@link RpcInvocation}一致
+     */
     private Object[] arguments;
 
+    /**
+     * 本地地址
+     */
     private InetSocketAddress localAddress;
 
+    /**
+     * 远端地址：provider端时记录consumer地址，consumer端时记录provider地址
+     */
     private InetSocketAddress remoteAddress;
 
+    /**
+     * 远端的应用名称
+     */
     private String remoteApplicationName;
 
     @Deprecated
@@ -101,14 +135,21 @@ public class RpcContext {
     @Deprecated
     private Invocation invocation;
 
-    // now we don't use the 'values' map to hold these objects
-    // we want these objects to be as generic as possible
+    /**
+     * 关联的Request和Response
+     * <p>
+     * now we don't use the 'values' map to hold these objects
+     * we want these objects to be as generic as possible
+     */
     private Object request;
     private Object response;
+
+    /**
+     * 异步上下文，存储异步调用相关的{@link RpcContext}以及异步请求相关的{@link Future}
+     */
     private AsyncContext asyncContext;
 
     private boolean remove = true;
-
 
     protected RpcContext() {
     }

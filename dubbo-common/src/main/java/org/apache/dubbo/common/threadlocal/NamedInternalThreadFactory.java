@@ -20,6 +20,8 @@ package org.apache.dubbo.common.threadlocal;
 import org.apache.dubbo.common.utils.NamedThreadFactory;
 
 /**
+ * 生成{@link InternalThread}的线程工厂
+ * <p>
  * NamedInternalThreadFactory
  * This is a threadFactory which produce {@link InternalThread}
  */
@@ -40,6 +42,8 @@ public class NamedInternalThreadFactory extends NamedThreadFactory {
     @Override
     public Thread newThread(Runnable runnable) {
         String name = mPrefix + mThreadNum.getAndIncrement();
+
+        // runnable使用InternalRunnable包装，以便在线程结束时，清除线程上关联的所有InternalThreadLocal变量
         InternalThread ret = new InternalThread(mGroup, InternalRunnable.Wrap(runnable), name, 0);
         ret.setDaemon(mDaemon);
         return ret;

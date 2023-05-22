@@ -54,14 +54,18 @@ import static org.apache.dubbo.rpc.Constants.RETURN_KEY;
 public class RpcUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(RpcUtils.class);
+
+    /**
+     * 负责标识当前系统的请求id
+     */
     private static final AtomicLong INVOKE_ID = new AtomicLong(0);
 
     public static Class<?> getReturnType(Invocation invocation) {
         try {
-            if (invocation != null && invocation.getInvoker() != null
-                    && invocation.getInvoker().getUrl() != null
-                    && invocation.getInvoker().getInterface() != GenericService.class
-                    && !invocation.getMethodName().startsWith("$")) {
+            if (invocation != null && invocation.getInvoker() != null && invocation.getInvoker().getUrl() != null
+                && invocation.getInvoker().getInterface() != GenericService.class && !invocation
+                .getMethodName()
+                .startsWith("$")) {
                 String service = invocation.getInvoker().getUrl().getServiceInterface();
                 if (StringUtils.isNotEmpty(service)) {
                     Method method = getMethodByService(invocation, service);
@@ -199,11 +203,15 @@ public class RpcUtils {
 
     public static boolean isReturnTypeFuture(Invocation inv) {
         Class<?> clazz;
+
+        // 获取方法的返回值类型
         if (inv instanceof RpcInvocation) {
-            clazz = ((RpcInvocation) inv).getReturnType();
+            clazz = ((RpcInvocation)inv).getReturnType();
         } else {
             clazz = getReturnType(inv);
         }
+
+        // （返回值类型不为空，且是CompletableFuture或子类） 或 被调用的方法是$invokeAsync
         return (clazz != null && CompletableFuture.class.isAssignableFrom(clazz)) || isGenericAsync(inv);
     }
 
@@ -222,18 +230,27 @@ public class RpcUtils {
     }
 
     public static InvokeMode getInvokeMode(URL url, Invocation inv) {
+
+        // 如果是RpcInvocation，且内部配置的invokeMode不为空，则直接返回内部配置的invokeMode
         if (inv instanceof RpcInvocation) {
-            RpcInvocation rpcInvocation = (RpcInvocation) inv;
+            RpcInvocation rpcInvocation = (RpcInvocation)inv;
             if (rpcInvocation.getInvokeMode() != null) {
                 return rpcInvocation.getInvokeMode();
             }
         }
 
+        // 判断外部需要的返回类型是否Future类型
         if (isReturnTypeFuture(inv)) {
             return InvokeMode.FUTURE;
-        } else if (isAsync(url, inv)) {
+        }
+
+        // 根据配置的参数判断是否异步请求
+        else if (isAsync(url, inv)) {
             return InvokeMode.ASYNC;
-        } else {
+        }
+
+        // 默认为同步请求
+        else {
             return InvokeMode.SYNC;
         }
     }

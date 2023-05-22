@@ -61,6 +61,9 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
 
     private final ExchangeClient[] clients;
 
+    /**
+     * 调用次数记录，通过{@link #index}和{@link #clients}的长度，判断每次调用时需要使用的{@link ExchangeClient}，以便平均调用
+     */
     private final AtomicPositiveInteger index = new AtomicPositiveInteger();
 
     private final String version;
@@ -92,7 +95,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         inv.setAttachment(PATH_KEY, getUrl().getPath());
         inv.setAttachment(VERSION_KEY, version);
 
-        // 获取一个exchangeClient
+        // 获取一个exchangeClient，只有一个则直接获取，有多个
         ExchangeClient currentClient;
         if (clients.length == 1) {
             currentClient = clients[0];
@@ -100,13 +103,19 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
             currentClient = clients[index.getAndIncrement() % clients.length];
         }
         try {
+
+            // 是否单向请求：true/单向请求
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
+
+            // 记录超时时间
             int timeout = calculateTimeout(invocation, methodName);
             invocation.put(TIMEOUT_KEY, timeout);
 
             // 如果是oneway，则直接发送，而不管返回值
             // oneway：单项通讯，客户端发起请求后不需要等待服务端的响应，也不会接收到服务端的响应，适用于不需要返回结果，只需要服务端接收请求并处理的场景
             if (isOneway) {
+
+                // 无需关注返回值，发起请求即可
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
                 currentClient.send(inv, isSent);
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);

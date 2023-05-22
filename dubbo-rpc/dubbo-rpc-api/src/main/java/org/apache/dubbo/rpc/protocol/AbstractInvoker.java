@@ -50,27 +50,46 @@ import static org.apache.dubbo.remoting.Constants.SERIALIZATION_KEY;
 import static org.apache.dubbo.rpc.Constants.SERIALIZATION_ID_KEY;
 
 /**
+ * {@link Invoker}的抽象实现
+ * <p>
  * This Invoker works on Consumer side.
  */
 public abstract class AbstractInvoker<T> implements Invoker<T> {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
+    /**
+     * 当前Invoker封装的业务接口类型
+     */
     private final Class<T> type;
 
+    /**
+     * 代表当前Invoker的URL，一般是provider的url，包含全部配置信息
+     */
     private final URL url;
 
+    /**
+     * 当前Invoker关联的附件信息，可以来自于{@link #url}
+     */
     private final Map<String, Object> attachment;
 
+    /**
+     * 当前Invoker的有效标识，和{@link #destroyed}标识相反
+     */
     private volatile boolean available = true;
 
+    /**
+     * 当前Invoker的销毁标识，和{@link #available}标识相反
+     */
     private AtomicBoolean destroyed = new AtomicBoolean(false);
 
     public AbstractInvoker(Class<T> type, URL url) {
-        this(type, url, (Map<String, Object>) null);
+        this(type, url, (Map<String, Object>)null);
     }
 
     public AbstractInvoker(Class<T> type, URL url, String[] keys) {
+
+        // 从URL上提取对应key的值，形成attachment
         this(type, url, convertAttachment(url, keys));
     }
 
@@ -87,16 +106,22 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
     }
 
     private static Map<String, Object> convertAttachment(URL url, String[] keys) {
+
+        // key为空，不处理
         if (ArrayUtils.isEmpty(keys)) {
             return null;
         }
         Map<String, Object> attachment = new HashMap<>();
+
+        // 循环keys数组，从url上提取相应的值，放入attachment
         for (String key : keys) {
             String value = url.getParameter(key);
             if (value != null && value.length() > 0) {
                 attachment.put(key, value);
             }
         }
+
+        // 返回attachment
         return attachment;
     }
 
@@ -150,7 +175,7 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
         RpcInvocation invocation = (RpcInvocation) inv;
         invocation.setInvoker(this);
 
-        // 在invocation上附加当前invoker的附件
+        // 在invocation上附加当前invoker的附件信息
         if (CollectionUtils.isNotEmptyMap(attachment)) {
             invocation.addObjectAttachmentsIfAbsent(attachment);
         }
@@ -204,6 +229,8 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
         } catch (Throwable e) {
             asyncResult = AsyncRpcResult.newDefaultAsyncResult(null, e, invocation);
         }
+
+        // 包装asyncResult为Future，如果调用模式是FUTURE，或外部需要返回Future类型的数据，则直接将此处设置的Future返回
         RpcContext.getContext().setFuture(new FutureAdapter(asyncResult.getResponseFuture()));
         return asyncResult;
     }

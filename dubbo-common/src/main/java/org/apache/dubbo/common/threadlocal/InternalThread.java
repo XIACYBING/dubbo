@@ -17,11 +17,23 @@
 
 package org.apache.dubbo.common.threadlocal;
 
+import org.apache.dubbo.common.threadpool.ThreadPool;
+
 /**
+ * Dubbo框架的内部线程实现，为了给{@link InternalThreadLocal}提供支持
+ * <p>
+ * {@link NamedInternalThreadFactory}生成的线程都是{@link InternalThread}，而{@link ThreadPool}接口的实现类中采用的线程工厂一般是{@link NamedInternalThreadFactory}
+ *
+ * @see #setThreadLocalMap
+ * @see #threadLocalMap()
+ * <p>
  * InternalThread
  */
 public class InternalThread extends Thread {
 
+    /**
+     * 相当于在每个线程上都绑定一个{@link InternalThreadLocalMap}，和{@link ThreadLocal}的实现原理一致
+     */
     private InternalThreadLocalMap threadLocalMap;
 
     public InternalThread() {
