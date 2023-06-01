@@ -125,6 +125,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
                 currentClient.send(inv, isSent);
 
                 // 新建并返回一个异步请求结果，其中的responseFuture是已完成状态（非单向请求的responseFuture是响应处理完成后设置成已完成状态）
+                //
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);
             }
 

@@ -34,7 +34,11 @@ import java.util.function.Function;
 import static org.apache.dubbo.common.utils.ReflectUtils.defaultReturn;
 
 /**
- * 一个异步的，未完成的Rpc调用的结果，会记录当前Rpc调用的相关信息
+ * 一个异步的，未完成的Rpc调用的结果，会记录当前Rpc调用的相关信息，结果相关的内容都交给{@link #responseFuture}处理
+ *
+ * {@link AsyncRpcResult}对{@link Result}的实现都是基于{@link #responseFuture}中的值，类型一般是{@link AppResponse}，也是{@link Result}的实现类
+ *
+ * 因此{@link AsyncRpcResult}只是{@link AppResponse}的一个装饰器
  * <p>
  * This class represents an unfinished RPC call, it will hold some context information for this call, for example RpcContext and Invocation,
  * so that when the call finishes and the result returns, it can guarantee all the contexts being recovered as the same as when the call was made
@@ -174,7 +178,7 @@ public class AsyncRpcResult implements Result {
             throw new RpcException(e);
         }
 
-        // responseFuture还未完成，也没超时，创建默认返回
+        // responseFuture还未完成，也没超时，创建一个默认返回
         return createDefaultValue(invocation);
     }
 
@@ -220,6 +224,7 @@ public class AsyncRpcResult implements Result {
         RpcInvocation rpcInvocation = (RpcInvocation) invocation;
 
         // 调用模式是future，则直接返回future结果
+        // 这里返回的future，是在AbstractInvoker.invoke方法末尾设置到RpcContext中
         if (InvokeMode.FUTURE == rpcInvocation.getInvokeMode()) {
             return RpcContext.getContext().getFuture();
         }
@@ -229,6 +234,9 @@ public class AsyncRpcResult implements Result {
         return getAppResponse().recreate();
     }
 
+    /**
+     * 基于当前方法，可以不断添加回调但是又不会丢失{@link RpcContext}
+     */
     @Override
     public Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn) {
 
@@ -378,14 +386,21 @@ public class AsyncRpcResult implements Result {
         return newDefaultAsyncResult(null, t, invocation);
     }
 
+    /**
+     * 新建一个默认的异步请求结果
+     */
     public static AsyncRpcResult newDefaultAsyncResult(Object value, Throwable t, Invocation invocation) {
         CompletableFuture<AppResponse> future = new CompletableFuture<>();
+
+        // 生成结果，设置异常和响应数据
         AppResponse result = new AppResponse(invocation);
         if (t != null) {
             result.setException(t);
         } else {
             result.setValue(value);
         }
+
+        // 设置future为complete，并将前面生成的result设置进去
         future.complete(result);
         return new AsyncRpcResult(future, invocation);
     }

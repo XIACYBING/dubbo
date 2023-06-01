@@ -69,6 +69,9 @@ public class AppResponse implements Result {
      */
     private Map<String, Object> attachments = new HashMap<>();
 
+    /**
+     * 属性信息
+     */
     private Map<String, Object> attributes = new HashMap<>();
 
     public AppResponse() {

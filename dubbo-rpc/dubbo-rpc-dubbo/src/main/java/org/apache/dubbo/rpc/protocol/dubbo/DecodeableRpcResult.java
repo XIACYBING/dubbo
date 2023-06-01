@@ -101,6 +101,8 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         // 根据响应状态进行不同的解码操作
         byte flag = in.readByte();
         switch (flag) {
+
+            // 空值的处理
             case DubboCodec.RESPONSE_NULL_VALUE:
                 break;
 
@@ -186,9 +188,9 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
                 // This almost never happens?
                 value = in.readObject();
             } else if (returnTypes.length == 1) {
-                value = in.readObject((Class<?>) returnTypes[0]);
+                value = in.readObject((Class<?>)returnTypes[0]);
             } else {
-                value = in.readObject((Class<?>) returnTypes[0], returnTypes[1]);
+                value = in.readObject((Class<?>)returnTypes[0], returnTypes[1]);
             }
             setValue(value);
         } catch (ClassNotFoundException e) {
@@ -196,6 +198,11 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         }
     }
 
+    /**
+     * 处理异常
+     *
+     * @param in 字节输入流
+     */
     private void handleException(ObjectInput in) throws IOException {
         try {
             setException(in.readThrowable());
@@ -204,8 +211,14 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
         }
     }
 
+    /**
+     * 处理附件信息
+     *
+     * @param in 字节输入流
+     */
     private void handleAttachment(ObjectInput in) throws IOException {
         try {
+            // 其实就是读取Map类型的数据
             addObjectAttachments(in.readAttachments());
         } catch (ClassNotFoundException e) {
             rethrow(e);

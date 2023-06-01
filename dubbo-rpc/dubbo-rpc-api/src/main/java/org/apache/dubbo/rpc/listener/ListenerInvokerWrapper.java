@@ -98,6 +98,8 @@ public class ListenerInvokerWrapper<T> implements Invoker<T> {
         try {
             invoker.destroy();
         } finally {
+
+            // 发布destroy通知
             if (CollectionUtils.isNotEmpty(listeners)) {
                 for (InvokerListener listener : listeners) {
                     if (listener != null) {
