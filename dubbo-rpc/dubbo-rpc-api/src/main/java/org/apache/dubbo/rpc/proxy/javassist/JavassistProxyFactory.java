@@ -25,6 +25,8 @@ import org.apache.dubbo.rpc.proxy.AbstractProxyInvoker;
 import org.apache.dubbo.rpc.proxy.InvokerInvocationHandler;
 
 /**
+ * {@code Javassist}对于{@link org.apache.dubbo.rpc.ProxyFactory}的实现
+ * <p>
  * JavassistRpcProxyFactory
  */
 public class JavassistProxyFactory extends AbstractProxyFactory {
@@ -32,18 +34,26 @@ public class JavassistProxyFactory extends AbstractProxyFactory {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T getProxy(Invoker<T> invoker, Class<?>[] interfaces) {
-        return (T) Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
+
+        // 委托给Proxy去生成代理实现相关接口：用InvokerInvocationHandler包装invoker，代理生成的对象的操作最终都会委托给invoker
+        return (T)Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
     }
 
     @Override
     public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {
+
         // TODO Wrapper cannot handle this scenario correctly: the classname contains '$'
-        final Wrapper wrapper = Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);
+        // 通过Wrapper将proxy包装起来，创建一个包装类
+        final Wrapper wrapper =
+            Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);
+
+        // 实现AbstractProxyInvoker
         return new AbstractProxyInvoker<T>(proxy, type, url) {
             @Override
-            protected Object doInvoke(T proxy, String methodName,
-                                      Class<?>[] parameterTypes,
-                                      Object[] arguments) throws Throwable {
+            protected Object doInvoke(T proxy, String methodName, Class<?>[] parameterTypes, Object[] arguments)
+                throws Throwable {
+
+                // 通过wrapper调用实际的方法
                 return wrapper.invokeMethod(proxy, methodName, parameterTypes, arguments);
             }
         };

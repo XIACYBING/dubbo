@@ -32,7 +32,7 @@ import static org.apache.dubbo.rpc.Constants.PROXY_KEY;
 public interface ProxyFactory {
 
     /**
-     * 为传入的{@link Invoker}创建代理对象
+     * 为传入的{@link Invoker}创建代理对象，一般是consumer端用来生成相关需要注入的类对象
      * <p>
      * create proxy.
      *
@@ -43,6 +43,12 @@ public interface ProxyFactory {
     <T> T getProxy(Invoker<T> invoker) throws RpcException;
 
     /**
+     * 为传入的{@link Invoker}创建代理对象，一般是consumer端用来生成相关需要注入的类对象，如果{@code generic}为{@code true}，则会增加
+     * {@link org.apache.dubbo.rpc.service.GenericService}的相关处理
+     * <p>
+     * 这边入参的{@code invoker}不是简单的{@link org.apache.dubbo.rpc.protocol.dubbo.DubboInvoker}的实例，而是经过相关的Invoker装饰器包装后的结果，
+     * 内部已经有完整的过滤器和监听器链路
+     * <p>
      * create proxy.
      *
      * @param invoker
@@ -52,7 +58,7 @@ public interface ProxyFactory {
     <T> T getProxy(Invoker<T> invoker, boolean generic) throws RpcException;
 
     /**
-     * 将传入的代理对象转换成{@link Invoker}对象，可以理解为{@link #getProxy}的逆向操作
+     * 将传入的代理对象转换成{@link Invoker}对象，一般是provider端为了包装实际服务为Invoker时使用
      * <p>
      * create invoker.
      *

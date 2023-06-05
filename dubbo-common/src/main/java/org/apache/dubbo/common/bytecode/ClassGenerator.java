@@ -16,11 +16,6 @@
  */
 package org.apache.dubbo.common.bytecode;
 
-import org.apache.dubbo.common.utils.ArrayUtils;
-import org.apache.dubbo.common.utils.ClassUtils;
-import org.apache.dubbo.common.utils.ReflectUtils;
-import org.apache.dubbo.common.utils.StringUtils;
-
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
@@ -30,6 +25,10 @@ import javassist.CtMethod;
 import javassist.CtNewConstructor;
 import javassist.CtNewMethod;
 import javassist.NotFoundException;
+import org.apache.dubbo.common.utils.ArrayUtils;
+import org.apache.dubbo.common.utils.ClassUtils;
+import org.apache.dubbo.common.utils.ReflectUtils;
+import org.apache.dubbo.common.utils.StringUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -45,23 +44,61 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * 类生成器
+ * <p>
  * ClassGenerator
  */
 public final class ClassGenerator {
 
+    /**
+     * 类名计数器，以此将不同的类区分开
+     */
     private static final AtomicLong CLASS_NAME_COUNTER = new AtomicLong(0);
     private static final String SIMPLE_NAME_TAG = "<init>";
-    private static final Map<ClassLoader, ClassPool> POOL_MAP = new ConcurrentHashMap<ClassLoader, ClassPool>(); //ClassLoader - ClassPool
+    private static final Map<ClassLoader, ClassPool> POOL_MAP = new ConcurrentHashMap<ClassLoader, ClassPool>();
+    //ClassLoader - ClassPool
     private ClassPool mPool;
+
+    /**
+     * Javassist中提供的对象，可以理解为一个类文件的抽象表现，通过该类可以指定要生成类的相关信息，并生成要生成类的类对象
+     */
     private CtClass mCtc;
+
+    /**
+     * 要生成的类的类名，一般是全路径，会包含包名，比如com.xxx.yyy.AService
+     */
     private String mClassName;
+
+    /**
+     * 要实现的父类，非接口
+     */
     private String mSuperClass;
+
+    /**
+     * 要继承的接口集合
+     */
     private Set<String> mInterfaces;
+
+    /**
+     * 字段集合
+     */
     private List<String> mFields;
+
+    /**
+     * 构造器信息，或者说构造器代码的集合
+     */
     private List<String> mConstructors;
+
+    /**
+     * 方法信息，或者说方法代码的集合
+     */
     private List<String> mMethods;
     private Map<String, Method> mCopyMethods; // <method desc,method instance>
     private Map<String, Constructor<?>> mCopyConstructors; // <constructor desc,constructor instance>
+
+    /**
+     * 是否生成默认构造方法
+     */
     private boolean mDefaultConstructor = false;
 
     private ClassGenerator() {
@@ -290,53 +327,77 @@ public final class ClassGenerator {
         if (mCtc != null) {
             mCtc.detach();
         }
+
+        // 生成唯一编号，防止代理类重名
         long id = CLASS_NAME_COUNTER.getAndIncrement();
         try {
             CtClass ctcs = mSuperClass == null ? null : mPool.get(mSuperClass);
+
+            // 如果类名为空，则需要父类和其他的一些信息生成一个唯一的类名
+            // Proxy生成的类，一般有指定的类名
             if (mClassName == null) {
-                mClassName = (mSuperClass == null || javassist.Modifier.isPublic(ctcs.getModifiers())
-                        ? ClassGenerator.class.getName() : mSuperClass + "$sc") + id;
+                mClassName = (mSuperClass == null || javassist.Modifier.isPublic(ctcs.getModifiers()) ?
+                    ClassGenerator.class.getName() : mSuperClass + "$sc") + id;
             }
+
+            // 根据类名生成CtClass，用于表示接下来要生成类的类信息
             mCtc = mPool.makeClass(mClassName);
+
+            // 设置父类信息
             if (mSuperClass != null) {
                 mCtc.setSuperclass(ctcs);
             }
+
+            // 添加一个DC接口的实现，以此给生成的代理类打标
             mCtc.addInterface(mPool.get(DC.class.getName())); // add dynamic class tag.
+
+            // 设置要实现的接口
             if (mInterfaces != null) {
                 for (String cl : mInterfaces) {
                     mCtc.addInterface(mPool.get(cl));
                 }
             }
+
+            // 设置要生成的类名
             if (mFields != null) {
                 for (String code : mFields) {
                     mCtc.addField(CtField.make(code, mCtc));
                 }
             }
+
+            // 设置要生成的方法
             if (mMethods != null) {
                 for (String code : mMethods) {
                     if (code.charAt(0) == ':') {
                         mCtc.addMethod(CtNewMethod.copy(getCtMethod(mCopyMethods.get(code.substring(1))),
-                                code.substring(1, code.indexOf('(')), mCtc, null));
+                            code.substring(1, code.indexOf('(')), mCtc, null));
                     } else {
                         mCtc.addMethod(CtNewMethod.make(code, mCtc));
                     }
                 }
             }
+
+            // 添加默认构造器
             if (mDefaultConstructor) {
                 mCtc.addConstructor(CtNewConstructor.defaultConstructor(mCtc));
             }
+
+            // 设置要生成的构造器
             if (mConstructors != null) {
                 for (String code : mConstructors) {
                     if (code.charAt(0) == ':') {
-                        mCtc.addConstructor(CtNewConstructor
-                                .copy(getCtConstructor(mCopyConstructors.get(code.substring(1))), mCtc, null));
+                        mCtc.addConstructor(
+                            CtNewConstructor.copy(getCtConstructor(mCopyConstructors.get(code.substring(1))), mCtc,
+                                null));
                     } else {
                         String[] sn = mCtc.getSimpleName().split("\\$+"); // inner class name include $.
                         mCtc.addConstructor(
-                                CtNewConstructor.make(code.replaceFirst(SIMPLE_NAME_TAG, sn[sn.length - 1]), mCtc));
+                            CtNewConstructor.make(code.replaceFirst(SIMPLE_NAME_TAG, sn[sn.length - 1]), mCtc));
                     }
                 }
             }
+
+            // 生成类对象
             return mCtc.toClass(loader, pd);
         } catch (RuntimeException e) {
             throw e;
