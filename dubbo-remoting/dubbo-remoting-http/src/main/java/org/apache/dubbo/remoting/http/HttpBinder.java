@@ -22,12 +22,18 @@ import org.apache.dubbo.common.extension.SPI;
 import org.apache.dubbo.remoting.Constants;
 
 /**
+ * Http协议的绑定器
+ * <p>
  * HttpBinder
  */
 @SPI("jetty")
 public interface HttpBinder {
 
     /**
+     * 根据URL生成监听对应端口的Http服务器
+     * <p>
+     * 当前是个适配方法，根据URL上的server参数去选择具体实现
+     * <p>
      * bind the server.
      *
      * @param url server url.

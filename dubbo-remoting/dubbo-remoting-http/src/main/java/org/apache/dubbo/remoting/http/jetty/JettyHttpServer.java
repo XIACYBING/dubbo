@@ -25,7 +25,6 @@ import org.apache.dubbo.remoting.http.HttpHandler;
 import org.apache.dubbo.remoting.http.servlet.DispatcherServlet;
 import org.apache.dubbo.remoting.http.servlet.ServletManager;
 import org.apache.dubbo.remoting.http.support.AbstractHttpServer;
-
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -35,61 +34,90 @@ import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
-import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_THREADS;
+import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 
+/**
+ * 基于{@code Jetty}框架实现的Http服务器
+ */
 public class JettyHttpServer extends AbstractHttpServer {
 
     private static final Logger logger = LoggerFactory.getLogger(JettyHttpServer.class);
 
     private Server server;
 
+    /**
+     * 代表当前服务器的URL，todo 这是不是有点多余，抽象父类中已经有了一个URL参数：{@link AbstractHttpServer#url}
+     */
     private URL url;
 
     public JettyHttpServer(URL url, final HttpHandler handler) {
+
+        // 初始化父类中的URL和请求处理器
         super(url, handler);
+
+        // 设置当前的url
         this.url = url;
+
+        // 日志配置
         // TODO we should leave this setting to slf4j
         // we must disable the debug logging for production use
         Log.setLog(new StdErrLog());
         Log.getLog().setDebugEnabled(false);
 
+        // 将当前请求处理器绑定到对应端口上
         DispatcherServlet.addHttpHandler(url.getParameter(Constants.BIND_PORT_KEY, url.getPort()), handler);
 
+        // 线程池配置，默认200线程
         int threads = url.getParameter(THREADS_KEY, DEFAULT_THREADS);
         QueuedThreadPool threadPool = new QueuedThreadPool();
         threadPool.setDaemon(true);
         threadPool.setMaxThreads(threads);
         threadPool.setMinThreads(threads);
 
+        // 启动Jetty服务器
         server = new Server(threadPool);
 
+        // 启动服务器的连接器，负责监听和创建客户端连接（猜测）
         ServerConnector connector = new ServerConnector(server);
 
+        // 设置连接器的Host和port参数
         String bindIp = url.getParameter(Constants.BIND_IP_KEY, url.getHost());
         if (!url.isAnyHost() && NetUtils.isValidLocalHost(bindIp)) {
             connector.setHost(bindIp);
         }
         connector.setPort(url.getParameter(Constants.BIND_PORT_KEY, url.getPort()));
 
+        // 连接器和服务器互相关联
         server.addConnector(connector);
 
+        // 新建Servlet处理器
         ServletHandler servletHandler = new ServletHandler();
+
+        // 创建一个调度Servlet（DispatcherServlet），监听所有请求  todo 为什么初始化顺序要在第二位？
         ServletHolder servletHolder = servletHandler.addServletWithMapping(DispatcherServlet.class, "/*");
         servletHolder.setInitOrder(2);
 
+        // 应用上下文初始化
         // dubbo's original impl can't support the use of ServletContext
         //        server.addHandler(servletHandler);
         // TODO Context.SESSIONS is the best option here? (In jetty 9.x, it becomes ServletContextHandler.SESSIONS)
         ServletContextHandler context = new ServletContextHandler(server, "/", ServletContextHandler.SESSIONS);
         context.setServletHandler(servletHandler);
-        ServletManager.getInstance().addServletContext(url.getParameter(Constants.BIND_PORT_KEY, url.getPort()), context.getServletContext());
+
+        // 关联对应的ServletContext
+        ServletManager
+            .getInstance()
+            .addServletContext(url.getParameter(Constants.BIND_PORT_KEY, url.getPort()), context.getServletContext());
 
         try {
+
+            // 启动服务器
             server.start();
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to start jetty server on " + url.getParameter(Constants.BIND_IP_KEY) + ":" + url.getParameter(Constants.BIND_PORT_KEY) + ", cause: "
-                + e.getMessage(), e);
+            throw new IllegalStateException(
+                "Failed to start jetty server on " + url.getParameter(Constants.BIND_IP_KEY) + ":" + url.getParameter(
+                    Constants.BIND_PORT_KEY) + ", cause: " + e.getMessage(), e);
         }
     }
 

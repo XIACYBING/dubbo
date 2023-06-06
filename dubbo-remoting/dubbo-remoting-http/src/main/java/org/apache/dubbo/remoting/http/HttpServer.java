@@ -22,6 +22,9 @@ import org.apache.dubbo.remoting.RemotingServer;
 
 import java.net.InetSocketAddress;
 
+/**
+ * 继承自{@link RemotingServer}，代表Http服务器的抽象接口
+ */
 public interface HttpServer extends Resetable, RemotingServer {
 
     /**

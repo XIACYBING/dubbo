@@ -27,11 +27,19 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
+ * 负责进行请求调度的Servlet
+ * <p>
  * Service dispatcher Servlet.
  */
 public class DispatcherServlet extends HttpServlet {
 
     private static final long serialVersionUID = 5766349180380479888L;
+
+    /**
+     * <port, Http请求处理器>
+     * <p>
+     * 端口和Http请求处理器的映射
+     */
     private static final Map<Integer, HttpHandler> HANDLERS = new ConcurrentHashMap<Integer, HttpHandler>();
     private static DispatcherServlet INSTANCE;
 
@@ -54,10 +62,18 @@ public class DispatcherServlet extends HttpServlet {
     @Override
     protected void service(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+
+        // 根据端口获取处理器
         HttpHandler handler = HANDLERS.get(request.getLocalPort());
-        if (handler == null) {// service not found.
+
+        // 没有处理器则报错
+        // service not found.
+        if (handler == null) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND, "Service not found.");
-        } else {
+        }
+
+        // 有处理器则正常处理请求
+        else {
             handler.handle(request, response);
         }
     }
