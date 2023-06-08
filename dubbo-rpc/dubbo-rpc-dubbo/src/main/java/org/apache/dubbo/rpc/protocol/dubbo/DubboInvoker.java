@@ -210,18 +210,36 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         }
     }
 
+    /**
+     * 在真正发起请求前，判断需要传递给provider端的超时参数
+     */
     private int calculateTimeout(Invocation invocation, String methodName) {
+
+        // 获取倒计时设置
         Object countdown = RpcContext.getContext().get(TIME_COUNTDOWN_KEY);
         int timeout = DEFAULT_TIMEOUT;
+
+        // 如果倒计时设置为空
         if (countdown == null) {
-            timeout = (int) RpcUtils.getTimeout(getUrl(), methodName, RpcContext.getContext(), DEFAULT_TIMEOUT);
+
+            // 获取URL上的超时参数
+            timeout = (int)RpcUtils.getTimeout(getUrl(), methodName, RpcContext.getContext(), DEFAULT_TIMEOUT);
+
+            // 如果url上的配置允许传递超时参数，则设置超时参数到invocation中
             if (getUrl().getParameter(ENABLE_TIMEOUT_COUNTDOWN_KEY, false)) {
-                invocation.setObjectAttachment(TIMEOUT_ATTACHMENT_KEY, timeout); // pass timeout to remote server
+                // pass timeout to remote server
+                invocation.setObjectAttachment(TIMEOUT_ATTACHMENT_KEY, timeout);
             }
-        } else {
-            TimeoutCountDown timeoutCountDown = (TimeoutCountDown) countdown;
-            timeout = (int) timeoutCountDown.timeRemaining(TimeUnit.MILLISECONDS);
-            invocation.setObjectAttachment(TIMEOUT_ATTACHMENT_KEY, timeout);// pass timeout to remote server
+        }
+
+        // 如果倒计时设置不为空，倒计时设置是用户本身设置到Context中的，所以需要传递到provider端
+        else {
+            TimeoutCountDown timeoutCountDown = (TimeoutCountDown)countdown;
+
+            // 计算剩余的超时毫秒数并设置到invocation中
+            timeout = (int)timeoutCountDown.timeRemaining(TimeUnit.MILLISECONDS);
+            // pass timeout to remote server
+            invocation.setObjectAttachment(TIMEOUT_ATTACHMENT_KEY, timeout);
         }
         return timeout;
     }

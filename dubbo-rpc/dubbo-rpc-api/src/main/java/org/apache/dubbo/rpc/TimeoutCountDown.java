@@ -18,14 +18,35 @@ package org.apache.dubbo.rpc;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 超时的倒计时器
+ */
 public final class TimeoutCountDown implements Comparable<TimeoutCountDown> {
 
+  /**
+   * 初始化一个倒计时器
+   *
+   * @param timeout 超时时间
+   * @param unit    超时单位
+   * @return 返回生成的倒计时器
+   */
   public static TimeoutCountDown newCountDown(long timeout, TimeUnit unit) {
     return new TimeoutCountDown(timeout, unit);
   }
 
+  /**
+   * 超时毫秒数
+   */
   private final long timeoutInMillis;
+
+  /**
+   * 基于{@link System#nanoTime()}计算出的超时纳秒数
+   */
   private final long deadlineInNanos;
+
+  /**
+   * 倒计时结束的标识
+   */
   private volatile boolean expired;
 
   private TimeoutCountDown(long timeout, TimeUnit unit) {
@@ -38,21 +59,39 @@ public final class TimeoutCountDown implements Comparable<TimeoutCountDown> {
   }
 
   public boolean isExpired() {
+
+    // 如果还未过期，则需要判断当前是否过期
     if (!expired) {
+
+      // 如果记录的截止纳秒数小于等于当前系统纳秒数，说明已过期，设置expired标识为true
       if (deadlineInNanos - System.nanoTime() <= 0) {
         expired = true;
-      } else {
+      }
+
+      // 否则说明还未过期，直接返回false即可
+      else {
         return false;
       }
     }
+
+    // 走到当前链路，说明一定是过期，直接返回true
     return true;
   }
 
+  /**
+   * 计算剩余的超时时间
+   */
   public long timeRemaining(TimeUnit unit) {
+
+    // 获取当前纳秒数
     final long currentNanos = System.nanoTime();
+
+    // 判断当前是否超时，如果是，则设置expired标识为true
     if (!expired && deadlineInNanos - currentNanos <= 0) {
       expired = true;
     }
+
+    // 计算剩余的超时时间，并转换为对应单位
     return unit.convert(deadlineInNanos - currentNanos, TimeUnit.NANOSECONDS);
   }
 

@@ -1,4 +1,4 @@
-package com.demo;
+package com.demo.http;
 
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;

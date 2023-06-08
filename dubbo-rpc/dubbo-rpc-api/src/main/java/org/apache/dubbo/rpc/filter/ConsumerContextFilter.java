@@ -34,6 +34,10 @@ import static org.apache.dubbo.common.constants.CommonConstants.REMOTE_APPLICATI
 import static org.apache.dubbo.common.constants.CommonConstants.TIME_COUNTDOWN_KEY;
 
 /**
+ * 应用在consumer端的一个过滤器，主要作用是在{@link RpcContext}中记录调用信息，并在真正的RPC调用发起前检查超时情况
+ * <p>
+ * todo 因为要检查超时情况，所以当前过滤器应该要贴近实际的RPC调用？
+ * <p>
  * ConsumerContextFilter set current RpcContext with invoker,invocation, local host, remote host and port
  * for consumer invoker.It does it to make the requires info available to execution thread's RpcContext.
  *
@@ -45,27 +49,41 @@ public class ConsumerContextFilter implements Filter {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+
+        // 获取消费端上下文信息
         RpcContext context = RpcContext.getContext();
-        context.setInvoker(invoker)
-                .setInvocation(invocation)
-                .setLocalAddress(NetUtils.getLocalHost(), 0)
-                .setRemoteAddress(invoker.getUrl().getHost(), invoker.getUrl().getPort())
-                .setRemoteApplicationName(invoker.getUrl().getParameter(REMOTE_APPLICATION_KEY))
-                .setAttachment(REMOTE_APPLICATION_KEY, invoker.getUrl().getParameter(APPLICATION_KEY));
+        context
+
+            // 记录consumer端的相关信息
+            .setInvoker(invoker)
+            .setInvocation(invocation)
+            .setLocalAddress(NetUtils.getLocalHost(), 0)
+
+            // 记录provider端的相关信息
+            .setRemoteAddress(invoker.getUrl().getHost(), invoker.getUrl().getPort())
+            .setRemoteApplicationName(invoker.getUrl().getParameter(REMOTE_APPLICATION_KEY))
+            .setAttachment(REMOTE_APPLICATION_KEY, invoker.getUrl().getParameter(APPLICATION_KEY));
+
+        // invocation请求关联invoker
         if (invocation instanceof RpcInvocation) {
-            ((RpcInvocation) invocation).setInvoker(invoker);
+            ((RpcInvocation)invocation).setInvoker(invoker);
         }
 
+        // 检查超时情况，这边如果能获取到countDown，一般是用户本身设置进去的，consumer端并没有设置countDown的链路
         // pass default timeout set by end user (ReferenceConfig)
         Object countDown = context.get(TIME_COUNTDOWN_KEY);
         if (countDown != null) {
-            TimeoutCountDown timeoutCountDown = (TimeoutCountDown) countDown;
+            TimeoutCountDown timeoutCountDown = (TimeoutCountDown)countDown;
+
+            // 如果已经超时，则不发起Rpc调用，直接返回一个超时异常的结果
             if (timeoutCountDown.isExpired()) {
                 return AsyncRpcResult.newDefaultAsyncResult(new RpcException(RpcException.TIMEOUT_TERMINATE,
-                        "No time left for making the following call: " + invocation.getServiceName() + "."
-                                + invocation.getMethodName() + ", terminate directly."), invocation);
+                    "No time left for making the following call: " + invocation.getServiceName() + "."
+                        + invocation.getMethodName() + ", terminate directly."), invocation);
             }
         }
+
+        // 否则正常发起调用
         return invoker.invoke(invocation);
     }
 

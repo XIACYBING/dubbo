@@ -1375,15 +1375,22 @@ class URL implements Serializable {
         return buildString(false, true, parameters); // no show username and password
     }
 
+    /**
+     * 获取当前URL的唯一字符串，当前方法不带参数
+     * <p>
+     * dubbo://IP:PORT/com.xxx.yyy.AService
+     */
     public String toIdentityString() {
         if (identity != null) {
             return identity;
         }
-        return identity = buildString(true, false); // only return identity message, see the method "equals" and "hashCode"
+        return identity =
+            buildString(true, false); // only return identity message, see the method "equals" and "hashCode"
     }
 
     public String toIdentityString(String... parameters) {
-        return buildString(true, false, parameters); // only return identity message, see the method "equals" and "hashCode"
+        return buildString(true, false,
+            parameters); // only return identity message, see the method "equals" and "hashCode"
     }
 
     public String toFullString() {

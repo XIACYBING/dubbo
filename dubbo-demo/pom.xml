@@ -36,6 +36,8 @@
         <module>dubbo-demo-annotation</module>
         <module>dubbo-demo-api</module>
         <module>dubbo-demo-http-json-rpc</module>
+        <module>dubbo-demo-utils</module>
+        <module>dubbo-demo-alibaba-http</module>
     </modules>
 
     <dependencyManagement>

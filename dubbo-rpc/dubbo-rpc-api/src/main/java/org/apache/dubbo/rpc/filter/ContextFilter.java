@@ -50,6 +50,8 @@ import static org.apache.dubbo.rpc.Constants.TOKEN_KEY;
 
 
 /**
+ * provider端的{@link RpcContext}加载的过滤器，会加载consumer和provider两端的上下文
+ * <p>
  * ContextFilter set the provider RpcContext with invoker, invocation, local port it is using and host for
  * current execution thread.
  *
@@ -81,7 +83,11 @@ public class ContextFilter implements Filter, Filter.Listener {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+
+        // 获取调用请求中携带的附件信息
         Map<String, Object> attachments = invocation.getObjectAttachments();
+
+        // 如果附件信息不为空，则需要过滤掉UNLOADING_KEYS中设置的不加载的key
         if (attachments != null) {
             Map<String, Object> newAttach = new HashMap<>(attachments.size());
             for (Map.Entry<String, Object> entry : attachments.entrySet()) {
@@ -93,6 +99,7 @@ public class ContextFilter implements Filter, Filter.Listener {
             attachments = newAttach;
         }
 
+        // 设置调用方的上下文信息
         RpcContext context = RpcContext.getContext();
         context.setInvoker(invoker)
                 .setInvocation(invocation)
@@ -105,6 +112,7 @@ public class ContextFilter implements Filter, Filter.Listener {
             context.setRemoteApplicationName((String) context.getAttachment(REMOTE_APPLICATION_KEY));
         }
 
+        // 当前为Provider端，如果接收到的请求中有配置超时限制，则向consumer上下文中增加一个超时倒计时器，并在TimeoutFilter中判断超时情况
         long timeout = RpcUtils.getTimeout(invocation, -1);
         if (timeout != -1) {
             context.set(TIME_COUNTDOWN_KEY, TimeoutCountDown.newCountDown(timeout, TimeUnit.MILLISECONDS));

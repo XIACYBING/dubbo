@@ -34,6 +34,8 @@ import java.util.Arrays;
 import static org.apache.dubbo.common.constants.CommonConstants.TIME_COUNTDOWN_KEY;
 
 /**
+ * provider端的一个超时过滤器
+ * <p>
  * Log any invocation timeout, but don't stop server from running
  */
 @Activate(group = CommonConstants.PROVIDER)
@@ -48,15 +50,21 @@ public class TimeoutFilter implements Filter, Filter.Listener {
 
     @Override
     public void onResponse(Result appResponse, Invoker<?> invoker, Invocation invocation) {
+
+        // 请求已经结束，需要判断当前是否超时
         Object obj = RpcContext.getContext().get(TIME_COUNTDOWN_KEY);
         if (obj != null) {
-            TimeoutCountDown countDown = (TimeoutCountDown) obj;
+            TimeoutCountDown countDown = (TimeoutCountDown)obj;
+
+            // 如果当前已经超时，清除响应数据，并打印日志    todo consumer端对这种情况怎么处理？这里好像并没有再进行超时标识的设置？
             if (countDown.isExpired()) {
-                ((AppResponse) appResponse).clear(); // clear response in case of timeout.
+                // clear response in case of timeout.
+                ((AppResponse)appResponse).clear();
                 if (logger.isWarnEnabled()) {
-                    logger.warn("invoke timed out. method: " + invocation.getMethodName() + " arguments: " +
-                            Arrays.toString(invocation.getArguments()) + " , url is " + invoker.getUrl() +
-                            ", invoke elapsed " + countDown.elapsedMillis() + " ms.");
+                    logger.warn(
+                        "invoke timed out. method: " + invocation.getMethodName() + " arguments: " + Arrays.toString(
+                            invocation.getArguments()) + " , url is " + invoker.getUrl() + ", invoke elapsed "
+                            + countDown.elapsedMillis() + " ms.");
                 }
             }
         }

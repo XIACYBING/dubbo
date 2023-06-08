@@ -208,6 +208,8 @@ public class RpcContext {
 
     /**
      * customized for internal use.
+     * <p>
+     * todo 这边的checkCanRemove参数其实压根没起到作用，应该修改判断为!checkCanRemove || LOCAL.get().canRemove()
      *
      * @param checkCanRemove if need check before remove
      */
