@@ -50,7 +50,7 @@ import static org.apache.dubbo.rpc.Constants.TOKEN_KEY;
 
 
 /**
- * provider端的{@link RpcContext}加载的过滤器，会加载consumer和provider两端的上下文
+ * provider端的{@link RpcContext}加载的过滤器，会加载consumer和provider两端的上下文，并在调用结束后清除consumer和provider两端的上下文信息
  * <p>
  * ContextFilter set the provider RpcContext with invoker, invocation, local port it is using and host for
  * current execution thread.
@@ -101,15 +101,16 @@ public class ContextFilter implements Filter, Filter.Listener {
 
         // 设置调用方的上下文信息
         RpcContext context = RpcContext.getContext();
-        context.setInvoker(invoker)
-                .setInvocation(invocation)
-//                .setAttachments(attachments)  // merged from dubbox
-                .setLocalAddress(invoker.getUrl().getHost(), invoker.getUrl().getPort());
-        String remoteApplication = (String) invocation.getAttachment(REMOTE_APPLICATION_KEY);
+        context.setInvoker(invoker).setInvocation(invocation)
+               //                .setAttachments(attachments)  // merged from dubbox
+               .setLocalAddress(invoker.getUrl().getHost(), invoker.getUrl().getPort());
+
+        // 设置远程应用key：当前是在provider，这里的远程应用key是从consumer的角度出发的
+        String remoteApplication = (String)invocation.getAttachment(REMOTE_APPLICATION_KEY);
         if (StringUtils.isNotEmpty(remoteApplication)) {
             context.setRemoteApplicationName(remoteApplication);
         } else {
-            context.setRemoteApplicationName((String) context.getAttachment(REMOTE_APPLICATION_KEY));
+            context.setRemoteApplicationName((String)context.getAttachment(REMOTE_APPLICATION_KEY));
         }
 
         // 当前为Provider端，如果接收到的请求中有配置超时限制，则向consumer上下文中增加一个超时倒计时器，并在TimeoutFilter中判断超时情况
@@ -118,6 +119,7 @@ public class ContextFilter implements Filter, Filter.Listener {
             context.set(TIME_COUNTDOWN_KEY, TimeoutCountDown.newCountDown(timeout, TimeUnit.MILLISECONDS));
         }
 
+        // dubbox的某些链路中，会在前置缓解中设置附件信息，所以需要合并
         // merged from dubbox
         // we may already added some attachments into RpcContext before this filter (e.g. in rest protocol)
         if (attachments != null) {
@@ -128,15 +130,22 @@ public class ContextFilter implements Filter, Filter.Listener {
             }
         }
 
+        // 设置invoker信息，当前invoker代表provider最终要调用的invoker
         if (invocation instanceof RpcInvocation) {
             ((RpcInvocation) invocation).setInvoker(invoker);
         }
 
         try {
+
+            // 设置consumer的上下文信息中的canRemove为false，避免调用过程中consumer上下文信息被清除
             context.clearAfterEachInvoke(false);
             return invoker.invoke(invocation);
         } finally {
+
+            // 设置consumer上下文信息中的canRemove为true，因为当前调用已经完成，上下文信息可以被清除
             context.clearAfterEachInvoke(true);
+
+            // 清除consumer和provider的上下文信息
             // IMPORTANT! For async scenario, we must remove context from current thread, so we always create a new RpcContext for the next invoke for the same thread.
             RpcContext.removeContext(true);
             RpcContext.removeServerContext();
@@ -145,6 +154,8 @@ public class ContextFilter implements Filter, Filter.Listener {
 
     @Override
     public void onResponse(Result appResponse, Invoker<?> invoker, Invocation invocation) {
+
+        // 将provider端的上下文信息放入响应中传递给consumer
         // pass attachments to result
         appResponse.addObjectAttachments(RpcContext.getServerContext().getObjectAttachments());
     }

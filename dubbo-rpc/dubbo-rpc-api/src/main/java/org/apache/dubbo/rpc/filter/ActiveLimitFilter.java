@@ -31,6 +31,8 @@ import static org.apache.dubbo.rpc.Constants.ACTIVES_KEY;
 
 /**
  * consumer端负责调用限制的过滤器，在方法纬度上限制并发调用
+ * <p>
+ * provider端对限流的实现是{@link ExecuteLimitFilter}
  *
  * ActiveLimitFilter restrict the concurrent client invocation for a service or service's method from client side.
  * To use active limit filter, configured url with <b>actives</b> and provide valid >0 integer value.

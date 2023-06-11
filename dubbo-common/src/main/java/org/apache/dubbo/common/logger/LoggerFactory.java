@@ -32,16 +32,27 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
+ * 日志工厂实现，对第三方日志框架实现进行适配包装
+ * <p>
  * Logger factory
  */
 public class LoggerFactory {
 
+    /**
+     * 当前所有正在使用的日志记录器集合
+     */
     private static final ConcurrentMap<String, FailsafeLogger> LOGGERS = new ConcurrentHashMap<>();
+
+    /**
+     * 当前正在使用的日志适配器，dubbo输出的日志最终由当前日志适配器生成的日志记录器来输出
+     */
     private static volatile LoggerAdapter LOGGER_ADAPTER;
 
     // search common-used logging frameworks
     static {
         String logger = System.getProperty("dubbo.application.logger", "");
+
+        // 针对不同日志适配器的处理
         switch (logger) {
             case "slf4j":
                 setLoggerAdapter(new Slf4jLoggerAdapter());
@@ -59,16 +70,18 @@ public class LoggerFactory {
                 setLoggerAdapter(new Log4j2LoggerAdapter());
                 break;
             default:
-                List<Class<? extends LoggerAdapter>> candidates = Arrays.asList(
-                        Log4jLoggerAdapter.class,
-                        Slf4jLoggerAdapter.class,
-                        Log4j2LoggerAdapter.class,
-                        JclLoggerAdapter.class,
-                        JdkLoggerAdapter.class
-                );
+
+                // 如果没有执行，则将所有日志适配器都尝试一遍，获取一个当前可用的日志适配器
+                List<Class<? extends LoggerAdapter>> candidates =
+                    Arrays.asList(Log4jLoggerAdapter.class, Slf4jLoggerAdapter.class, Log4j2LoggerAdapter.class,
+                        JclLoggerAdapter.class, JdkLoggerAdapter.class);
                 for (Class<? extends LoggerAdapter> clazz : candidates) {
                     try {
+
+                        // 循环日志适配器
                         setLoggerAdapter(clazz.newInstance());
+
+                        // 获取到一个可用的日志适配器即中止循环
                         break;
                     } catch (Throwable ignored) {
                     }
@@ -79,6 +92,9 @@ public class LoggerFactory {
     private LoggerFactory() {
     }
 
+    /**
+     * 通过SPI机制初始化日志适配器
+     */
     public static void setLoggerAdapter(String loggerAdapter) {
         if (loggerAdapter != null && loggerAdapter.length() > 0) {
             setLoggerAdapter(ExtensionLoader.getExtensionLoader(LoggerAdapter.class).getExtension(loggerAdapter));
@@ -92,9 +108,17 @@ public class LoggerFactory {
      */
     public static void setLoggerAdapter(LoggerAdapter loggerAdapter) {
         if (loggerAdapter != null) {
+
+            // 获取当前日志记录器
             Logger logger = loggerAdapter.getLogger(LoggerFactory.class.getName());
+
+            // 输出切换日志适配器的日志
             logger.info("using logger: " + loggerAdapter.getClass().getName());
+
+            // 将当前日志适配器作为正在使用的日志适配器
             LoggerFactory.LOGGER_ADAPTER = loggerAdapter;
+
+            // 将所有正在使用的日志记录器切换成当前日志适配器生成的日志记录器
             for (Map.Entry<String, FailsafeLogger> entry : LOGGERS.entrySet()) {
                 entry.getValue().setLogger(LOGGER_ADAPTER.getLogger(entry.getKey()));
             }

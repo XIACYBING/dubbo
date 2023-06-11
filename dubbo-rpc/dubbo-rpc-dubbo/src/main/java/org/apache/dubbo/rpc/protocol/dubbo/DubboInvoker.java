@@ -222,7 +222,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         // 如果倒计时设置为空
         if (countdown == null) {
 
-            // 获取URL上的超时参数
+            // 获取URL上的超时参数，默认值是1000毫秒
             timeout = (int)RpcUtils.getTimeout(getUrl(), methodName, RpcContext.getContext(), DEFAULT_TIMEOUT);
 
             // 如果url上的配置允许传递超时参数，则设置超时参数到invocation中

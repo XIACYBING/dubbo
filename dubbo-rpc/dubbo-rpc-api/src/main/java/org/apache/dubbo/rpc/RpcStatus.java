@@ -183,7 +183,7 @@ public class RpcStatus {
      */
     public static void endCount(URL url, String methodName, long elapsed, boolean succeeded) {
 
-        // 减少provider服务的并发度
+        // 减少服务的并发度
         endCount(getStatus(url), elapsed, succeeded);
 
         // 减少对应方法的并发去

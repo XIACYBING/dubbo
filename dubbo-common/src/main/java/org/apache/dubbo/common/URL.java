@@ -1544,8 +1544,6 @@ class URL implements Serializable {
 
     /**
      * The format of return value is '{group}/{path/interfaceName}:{version}'
-     *
-     * @return
      */
     public String getPathKey() {
         String inf = StringUtils.isNotEmpty(path) ? path : getServiceInterface();
@@ -1555,6 +1553,9 @@ class URL implements Serializable {
         return buildKey(inf, getParameter(GROUP_KEY), getParameter(VERSION_KEY));
     }
 
+    /**
+     * 构建ServiceKey：{group}/{path/interfaceName}:{version}
+     */
     public static String buildKey(String path, String group, String version) {
         return BaseServiceMetadata.buildServiceKey(path, group, version);
     }

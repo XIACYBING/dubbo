@@ -20,6 +20,9 @@ import org.apache.dubbo.common.Version;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.utils.NetUtils;
 
+/**
+ * fail safe 的日志记录器，在所有日志接口上都加上了异常捕获的处理，并丢弃相关异常
+ */
 public class FailsafeLogger implements Logger {
 
     private Logger logger;

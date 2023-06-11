@@ -20,6 +20,8 @@ import org.apache.dubbo.common.URL;
 import org.apache.dubbo.rpc.Invocation;
 
 /**
+ * TPS限制器，用于检查tps是否达到上限
+ * <p>
  * Provide boolean information whether a invocation of a provider service's methods or a particular method
  * is allowed within a last invocation and current invocation.
  * <pre>

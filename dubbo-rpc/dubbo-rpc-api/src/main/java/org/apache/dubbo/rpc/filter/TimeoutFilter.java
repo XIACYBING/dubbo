@@ -56,8 +56,10 @@ public class TimeoutFilter implements Filter, Filter.Listener {
         if (obj != null) {
             TimeoutCountDown countDown = (TimeoutCountDown)obj;
 
-            // 如果当前已经超时，清除响应数据，并打印日志    todo consumer端对这种情况怎么处理？这里好像并没有再进行超时标识的设置？
+            // 如果当前已经超时，清除响应数据，并打印日志    todo consumer端对这种情况怎么处理？这里好像并没有再进行超时标识的设置？会和请求的超时检查任务联动？还是有其他处理方案？
             if (countDown.isExpired()) {
+
+                // 清除响应数据、异常信息和附件信息
                 // clear response in case of timeout.
                 ((AppResponse)appResponse).clear();
                 if (logger.isWarnEnabled()) {
