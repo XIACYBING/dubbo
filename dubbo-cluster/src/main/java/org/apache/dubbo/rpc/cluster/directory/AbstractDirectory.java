@@ -39,6 +39,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.PROTOCOL_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.REFER_KEY;
 
 /**
+ * {@link Directory}的抽线实现，提供路由规则集合{@link RouterChain}的维护
+ * <p>
  * Abstract implementation of Directory: Invoker list returned from this Directory's list method have been filtered by Routers
  */
 public abstract class AbstractDirectory<T> implements Directory<T> {
@@ -70,19 +72,32 @@ public abstract class AbstractDirectory<T> implements Directory<T> {
             throw new IllegalArgumentException("url == null");
         }
 
+        // 获取refer参数下所有的key和value映射，组成Map返回
         this.queryMap = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
+
+        // 获取消费协议，默认为dubbo
         this.consumedProtocol = this.queryMap.get(PROTOCOL_KEY) == null ? DUBBO : this.queryMap.get(PROTOCOL_KEY);
+
+        // 移除refer和monitor参数
         this.url = url.removeParameter(REFER_KEY).removeParameter(MONITOR_KEY);
 
+        // 获取path参数，即接口全路径
         String path = queryMap.get(PATH_KEY);
-        URL consumerUrlFrom = this.url.setProtocol(consumedProtocol)
-                .setPath(path == null ? queryMap.get(INTERFACE_KEY) : path);
+
+        // 根据protocol和path生成新的consumer的url
+        URL consumerUrlFrom =
+            this.url.setProtocol(consumedProtocol).setPath(path == null ? queryMap.get(INTERFACE_KEY) : path);
+
+        // 如果原url来自注册中心，则移除所有参数，否则保留
         if (isUrlFromRegistry) {
             // reserve parameters if url is already a consumer url
             consumerUrlFrom = consumerUrlFrom.clearParameters();
         }
+
+        // 添加queryMap作为参数
         this.consumerUrl = consumerUrlFrom.addParameters(queryMap).removeParameter(MONITOR_KEY);
 
+        // 设置路由规则链
         setRouterChain(routerChain);
     }
 
@@ -96,6 +111,7 @@ public abstract class AbstractDirectory<T> implements Directory<T> {
             throw new RpcException("Directory already destroyed .url: " + getUrl());
         }
 
+        // 调用子类实现，获取当前可用的invoker集合
         return doList(invocation);
     }
 

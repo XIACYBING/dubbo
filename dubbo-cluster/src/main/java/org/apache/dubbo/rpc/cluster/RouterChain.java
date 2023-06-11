@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 import static org.apache.dubbo.rpc.cluster.Constants.ROUTER_KEY;
 
 /**
+ * 路由规则链路
+ * <p>
  * Router chain
  */
 public class RouterChain<T> {

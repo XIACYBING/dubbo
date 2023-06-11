@@ -74,11 +74,16 @@ import static org.apache.dubbo.rpc.cluster.Constants.ROUTER_KEY;
 public class RegistryDirectory<T> extends DynamicDirectory<T> {
     private static final Logger logger = LoggerFactory.getLogger(RegistryDirectory.class);
 
-    private static final ConsumerConfigurationListener CONSUMER_CONFIGURATION_LISTENER = new ConsumerConfigurationListener();
+    private static final ConsumerConfigurationListener CONSUMER_CONFIGURATION_LISTENER =
+        new ConsumerConfigurationListener();
     private ReferenceConfigurationListener referenceConfigurationListener;
 
-    // Map<url, Invoker> cache service url to invoker mapping.
-    // The initial value is null and the midway may be assigned to null, please use the local variable reference
+    /**
+     * 当前可用的invoker集合的缓存，{@link #invokers}集合是当前映射的值集合
+     * <p>
+     * Map<url, Invoker> cache service url to invoker mapping.
+     * The initial value is null and the midway may be assigned to null, please use the local variable reference
+     */
     protected volatile Map<URL, Invoker<T>> urlInvokerMap;
     // The initial value is null and the midway may be assigned to null, please use the local variable reference
     protected volatile Set<URL> cachedInvokerUrls;
@@ -89,6 +94,10 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
 
     @Override
     public void subscribe(URL url) {
+
+        // 注册中心监听器的订阅回调
+
+        // 设置消费url
         setConsumerUrl(url);
         CONSUMER_CONFIGURATION_LISTENER.addNotifyListener(this);
         referenceConfigurationListener = new ReferenceConfigurationListener(this, url);
@@ -105,25 +114,41 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
 
     @Override
     public synchronized void notify(List<URL> urls) {
-        Map<String, List<URL>> categoryUrls = urls.stream()
-                .filter(Objects::nonNull)
-                .filter(this::isValidCategory)
-                .filter(this::isNotCompatibleFor26x)
-                .collect(Collectors.groupingBy(this::judgeCategory));
 
+        // 将所有url按照category分组
+        Map<String, List<URL>> categoryUrls = urls.stream().filter(Objects::nonNull)
+
+                                                  // 验证url中category参数的有效性
+                                                  .filter(this::isValidCategory)
+
+                                                  // url上没有compatible_config参数
+                                                  .filter(this::isNotCompatibleFor26x)
+
+                                                  // 按照category分组
+                                                  .collect(Collectors.groupingBy(this::judgeCategory));
+
+        // 获取configurators下的url
         List<URL> configuratorURLs = categoryUrls.getOrDefault(CONFIGURATORS_CATEGORY, Collections.emptyList());
         this.configurators = Configurator.toConfigurators(configuratorURLs).orElse(this.configurators);
 
+        // 获取routers下的url
         List<URL> routerURLs = categoryUrls.getOrDefault(ROUTERS_CATEGORY, Collections.emptyList());
+
+        // 生成路由规则，并加入到路由规则集合中
         toRouters(routerURLs).ifPresent(this::addRouters);
 
+        // 获取providers
         // providers
         List<URL> providerURLs = categoryUrls.getOrDefault(PROVIDERS_CATEGORY, Collections.emptyList());
-        /**
-         * 3.x added for extend URL address
-         */
-        ExtensionLoader<AddressListener> addressListenerExtensionLoader = ExtensionLoader.getExtensionLoader(AddressListener.class);
-        List<AddressListener> supportedListeners = addressListenerExtensionLoader.getActivateExtension(getUrl(), (String[]) null);
+
+        // 获取AddressListener的实现，用于监听provider的变化，但是这是为3.0预留的，当前没有实现类
+        // 3.x added for extend URL address
+        ExtensionLoader<AddressListener> addressListenerExtensionLoader =
+            ExtensionLoader.getExtensionLoader(AddressListener.class);
+        List<AddressListener> supportedListeners =
+            addressListenerExtensionLoader.getActivateExtension(getUrl(), (String[])null);
+
+        // 通知provider的变化
         if (supportedListeners != null && !supportedListeners.isEmpty()) {
             for (AddressListener addressListener : supportedListeners) {
                 providerURLs = addressListener.notify(providerURLs, getConsumerUrl(), this);
@@ -165,14 +190,28 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
     private void refreshInvoker(List<URL> invokerUrls) {
         Assert.notNull(invokerUrls, "invokerUrls should not be null");
 
+        // 如果provider的url集合只有一个，且是以empty作为协议，则说明所有provider都下线了
         if (invokerUrls.size() == 1
                 && invokerUrls.get(0) != null
                 && EMPTY_PROTOCOL.equals(invokerUrls.get(0).getProtocol())) {
-            this.forbidden = true; // Forbid to access
+
+            // forbidden设置为true，后续请求直接抛出no provider的移除
+            // Forbid to access
+            this.forbidden = true;
+
+            // 置空invokers集合
             this.invokers = Collections.emptyList();
+
+            // 更新路由规则中的invoker，其实就是设置为空集合
             routerChain.setInvokers(this.invokers);
-            destroyAllInvokers(); // Close all invokers
-        } else {
+
+            // 销毁所有invoker
+            // Close all invokers
+            destroyAllInvokers();
+        }
+
+        // 否则更新当前可用的invoker todo 继续解析
+        else {
             Map<URL, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
             if (invokerUrls == Collections.<URL>emptyList()) {
                 invokerUrls = new ArrayList<>();
@@ -405,7 +444,12 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
      */
     @Override
     protected void destroyAllInvokers() {
-        Map<URL, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
+
+        // 获取当前所有invoker
+        // local reference
+        Map<URL, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap;
+
+        // 不为空则循环调用invoker.destroy，进行销毁
         if (localUrlInvokerMap != null) {
             for (Invoker<T> invoker : new ArrayList<>(localUrlInvokerMap.values())) {
                 try {
@@ -414,9 +458,15 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
                     logger.warn("Failed to destroy service " + serviceKey + " to provider " + invoker.getUrl(), t);
                 }
             }
+
+            // 销毁结束，情况集合
             localUrlInvokerMap.clear();
         }
+
+        // 置空当前可用的invoker集合
         invokers = null;
+
+        // 指控缓存的invoker url集合
         cachedInvokerUrls = null;
     }
 

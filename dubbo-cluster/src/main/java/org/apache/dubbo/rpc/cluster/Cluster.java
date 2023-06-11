@@ -22,13 +22,20 @@ import org.apache.dubbo.common.extension.SPI;
 import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.rpc.Invoker;
 import org.apache.dubbo.rpc.RpcException;
+import org.apache.dubbo.rpc.cluster.support.AbstractClusterInvoker;
 
 /**
+ * 集群容错接口，当某些provider节点发生异常时，当前接口实现应保证请求可以发送到正常的provider接口上，从而保证系统的可用性
+ * <p>
+ * 当请求进入cluster层时，会创建一个{@link AbstractClusterInvoker}，并在其中完成路由和负载均衡，大致逻辑如下：
+ * 1、从{@link Directory}中获取当前{@link Invoker}集合
+ * 2、根据{@link Router}集合进行路由，获取符合条件的{@link Invoker}集合
+ * 3、按照{@link LoadBalance}指定的负载均衡策略获取最终需要的{@link Invoker}对象
+ * <p>
  * Cluster. (SPI, Singleton, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Computer_cluster">Cluster</a>
  * <a href="http://en.wikipedia.org/wiki/Fault-tolerant_system">Fault-Tolerant</a>
- *
  */
 @SPI(Cluster.DEFAULT)
 public interface Cluster {

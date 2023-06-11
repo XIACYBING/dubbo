@@ -48,6 +48,8 @@ import static org.apache.dubbo.rpc.cluster.Constants.DEFAULT_CLUSTER_AVAILABLE_C
 import static org.apache.dubbo.rpc.cluster.Constants.DEFAULT_CLUSTER_STICKY;
 
 /**
+ * 集群的抽象实现
+ * <p>
  * AbstractClusterInvoker
  */
 public abstract class AbstractClusterInvoker<T> implements ClusterInvoker<T> {

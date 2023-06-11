@@ -25,6 +25,8 @@ import org.apache.dubbo.rpc.RpcException;
 import java.util.List;
 
 /**
+ * 目录，directory，表示多个{@link Invoker}的集合，是后续的路由规则、负载均衡策略和集群容错的基础
+ * <p>
  * Directory. (SPI, Prototype, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Directory_service">Directory Service</a>
@@ -34,6 +36,8 @@ import java.util.List;
 public interface Directory<T> extends Node {
 
     /**
+     * 获取接口类型
+     * <p>
      * get service type.
      *
      * @return service type.
@@ -41,18 +45,32 @@ public interface Directory<T> extends Node {
     Class<T> getInterface();
 
     /**
+     * 根据{@link Invocation}请求，过滤出符合条件的{@link Invoker}集合
+     * <p>
      * list invokers.
      *
      * @return invokers
      */
     List<Invoker<T>> list(Invocation invocation) throws RpcException;
 
+    /**
+     * 获取当前{@link Directory}维护的所有{@link Invoker}对象
+     */
     List<Invoker<T>> getAllInvokers();
 
+    /**
+     * 获取consumer端的url
+     */
     URL getConsumerUrl();
 
+    /**
+     * 当前{@link Directory}是否销毁
+     */
     boolean isDestroyed();
 
+    /**
+     * todo 看实现似乎是销毁所有invoker的
+     */
     void discordAddresses();
 
 }

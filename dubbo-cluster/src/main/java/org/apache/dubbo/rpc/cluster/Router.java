@@ -24,6 +24,8 @@ import org.apache.dubbo.rpc.RpcException;
 import java.util.List;
 
 /**
+ * 集群路由器，当consumer发起一个请求时，会根据用户执行的路由规则，通过集群路由器去{@link Directory}中选择出符合条件的provider对应的{@link Invoker}
+ * <p>
  * Router. (SPI, Prototype, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Routing">Routing</a>

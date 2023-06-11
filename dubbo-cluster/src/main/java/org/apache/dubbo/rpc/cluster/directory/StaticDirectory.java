@@ -29,11 +29,16 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * 静态{@link org.apache.dubbo.rpc.cluster.Directory}实现，{@link #invokers}集合在对象实例化后就不会再变化
+ * <p>
  * StaticDirectory
  */
 public class StaticDirectory<T> extends AbstractDirectory<T> {
     private static final Logger logger = LoggerFactory.getLogger(StaticDirectory.class);
 
+    /**
+     * {@link Invoker}集合，初始化后就不再发生变化
+     */
     private final List<Invoker<T>> invokers;
 
     public StaticDirectory(List<Invoker<T>> invokers) {
@@ -92,14 +97,22 @@ public class StaticDirectory<T> extends AbstractDirectory<T> {
     }
 
     public void buildRouterChain() {
+
+        // 根据url构建一个路由规则链路
         RouterChain<T> routerChain = RouterChain.buildChain(getUrl());
+
+        // 设置invoker集合
         routerChain.setInvokers(invokers);
+
+        // 设置路由规则链路
         this.setRouterChain(routerChain);
     }
 
     @Override
     protected List<Invoker<T>> doList(Invocation invocation) throws RpcException {
         List<Invoker<T>> finalInvokers = invokers;
+
+        // 根据路由规则获取可用的invoker集合
         if (routerChain != null) {
             try {
                 finalInvokers = routerChain.route(getConsumerUrl(), invocation);
@@ -107,6 +120,8 @@ public class StaticDirectory<T> extends AbstractDirectory<T> {
                 logger.error("Failed to execute router: " + getUrl() + ", cause: " + t.getMessage(), t);
             }
         }
+
+        // 如果没有可用的invoker集合则直接返回空
         return finalInvokers == null ? Collections.emptyList() : finalInvokers;
     }
 
