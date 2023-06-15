@@ -85,7 +85,12 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
      * The initial value is null and the midway may be assigned to null, please use the local variable reference
      */
     protected volatile Map<URL, Invoker<T>> urlInvokerMap;
-    // The initial value is null and the midway may be assigned to null, please use the local variable reference
+
+    /**
+     * 当前可用的provider的url集合
+     * <p>
+     * The initial value is null and the midway may be assigned to null, please use the local variable reference
+     */
     protected volatile Set<URL> cachedInvokerUrls;
 
     public RegistryDirectory(Class<T> serviceType, URL url) {
@@ -210,50 +215,81 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
             destroyAllInvokers();
         }
 
-        // 否则更新当前可用的invoker todo 继续解析
+        // 否则更新当前可用的invoker
         else {
-            Map<URL, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
+
+            // 获取当前可用的invoker集合
+            // local reference
+            Map<URL, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap;
+
+            // 类型转换，以便后续能使用集合
             if (invokerUrls == Collections.<URL>emptyList()) {
                 invokerUrls = new ArrayList<>();
             }
+
+            // 如果入参的invokerUrls为空，但本地缓存的url不为空，则将本地缓存的url添加到入参集合中
             if (invokerUrls.isEmpty() && this.cachedInvokerUrls != null) {
                 invokerUrls.addAll(this.cachedInvokerUrls);
-            } else {
+            }
+
+            // 否则说明入参的invokerUrls不为空，或本地缓存的urls为空，不管是哪种情况，缓存入参的invokerUrls
+            else {
                 this.cachedInvokerUrls = new HashSet<>();
                 this.cachedInvokerUrls.addAll(invokerUrls);//Cached invoker urls, convenient for comparison
             }
+
+            // 如果入参的invokerUrls为空，则无需处理，当前没有可用的提供者
             if (invokerUrls.isEmpty()) {
                 return;
             }
-            this.forbidden = false; // Allow to access
+
+            // 否则说明当前有可用的提供者
+
+            // 设置forbidden表示为true
+            // Allow to access
+            this.forbidden = false;
+
+            // 将provider的url集合转换为invoker集合
             Map<URL, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
-            /**
+            /*
+             * 如果生成的newUrlInvokerMap为空，说明是异常情况，比如协议错误（例如consumer协议是dubbo，provider协议非dubbo），或注册中心推送了错误的数据
+             *
              * If the calculation is wrong, it is not processed.
              *
              * 1. The protocol configured by the client is inconsistent with the protocol of the server.
              *    eg: consumer protocol = dubbo, provider only has other protocol services(rest).
              * 2. The registration center is not robust and pushes illegal specification data.
-             *
              */
+            // 异常情况，打印错误日志，直接返回
             if (CollectionUtils.isEmptyMap(newUrlInvokerMap)) {
-                logger.error(new IllegalStateException("urls to invokers error .invokerUrls.size :" + invokerUrls.size() + ", invoker.size :0. urls :" + invokerUrls
-                        .toString()));
+                logger.error(new IllegalStateException(
+                    "urls to invokers error .invokerUrls.size :" + invokerUrls.size() + ", invoker.size :0. urls :"
+                        + invokerUrls.toString()));
                 return;
             }
 
+            // 获取可用的invoker集合
             List<Invoker<T>> newInvokers = Collections.unmodifiableList(new ArrayList<>(newUrlInvokerMap.values()));
+
+            // 先设置到路由规则链中，优先处理
             // pre-route and build cache, notice that route cache should build on original Invoker list.
             // toMergeMethodInvokerMap() will wrap some invokers having different groups, those wrapped invokers not should be routed.
             routerChain.setInvokers(newInvokers);
+
+            // 设置本地invoker集合，多group有不同的处理
             this.invokers = multiGroup ? toMergeInvokerList(newInvokers) : newInvokers;
+
+            // 设置本地url和invoker的映射缓存
             this.urlInvokerMap = newUrlInvokerMap;
 
+            // 销毁旧invoker中已经没用的invoker
             // Close the unused Invoker
             destroyUnusedInvokers(oldUrlInvokerMap, newUrlInvokerMap);
 
         }
 
+        // 通过监听器通知外部，invoker发生了变化
         // notify invokers refreshed
         this.invokersChanged();
     }
