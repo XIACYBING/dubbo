@@ -36,6 +36,7 @@ import org.apache.dubbo.rpc.cluster.Configurator;
 import org.apache.dubbo.rpc.cluster.RouterChain;
 import org.apache.dubbo.rpc.cluster.RouterFactory;
 import org.apache.dubbo.rpc.cluster.directory.AbstractDirectory;
+import org.apache.dubbo.rpc.cluster.directory.StaticDirectory;
 
 import java.util.Collections;
 import java.util.List;
@@ -92,6 +93,9 @@ public abstract class DynamicDirectory<T> extends AbstractDirectory<T> implement
 
     /**
      * 当前可用的{@link Invoker}集合
+     * <p>
+     * 如果是单group的情况下，一个invoker代表一个提供者；
+     * 如果是多group的情况下，一个invoker代表一个group下的所有提供者，用{@link StaticDirectory}和{@link #CLUSTER}对group下的所有提供者进行包装
      */
     protected volatile List<Invoker<T>> invokers;
     // Set<invokerUrls> cache invokeUrls to invokers mapping.
@@ -165,18 +169,23 @@ public abstract class DynamicDirectory<T> extends AbstractDirectory<T> implement
 
     @Override
     public List<Invoker<T>> doList(Invocation invocation) {
+
+        // 没有可用的提供者
         if (forbidden) {
             // 1. No service provider 2. Service providers are disabled
-            throw new RpcException(RpcException.FORBIDDEN_EXCEPTION, "No provider available from registry " +
-                    getUrl().getAddress() + " for service " + getConsumerUrl().getServiceKey() + " on consumer " +
-                    NetUtils.getLocalHost() + " use dubbo version " + Version.getVersion() +
-                    ", please check status of providers(disabled, not registered or in blacklist).");
+            throw new RpcException(RpcException.FORBIDDEN_EXCEPTION,
+                "No provider available from registry " + getUrl().getAddress() + " for service "
+                    + getConsumerUrl().getServiceKey() + " on consumer " + NetUtils.getLocalHost()
+                    + " use dubbo version " + Version.getVersion()
+                    + ", please check status of providers(disabled, not registered or in blacklist).");
         }
 
+        // 多分组情况下，直接返回分组，分组中会再进行路由过滤
         if (multiGroup) {
             return this.invokers == null ? Collections.emptyList() : this.invokers;
         }
 
+        // 单分组情况下，根据路由规则进行路由，返回通过路由的invoker
         List<Invoker<T>> invokers = null;
         try {
             // Get invokers from cache, only runtime routers will be executed.

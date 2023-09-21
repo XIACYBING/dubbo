@@ -28,6 +28,7 @@ import static org.apache.dubbo.common.constants.CommonConstants.APPLICATION_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.CORE_THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_KEY_PREFIX;
 import static org.apache.dubbo.common.constants.CommonConstants.DUBBO_VERSION_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.INVOKER_LISTENER_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.METHODS_KEY;
@@ -41,7 +42,6 @@ import static org.apache.dubbo.common.constants.CommonConstants.THREADS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.THREAD_NAME_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.TIMESTAMP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.GENERIC_KEY;
 
 
 public class DefaultProviderURLMergeProcessor implements ProviderURLMergeProcessor {
@@ -50,8 +50,11 @@ public class DefaultProviderURLMergeProcessor implements ProviderURLMergeProcess
     public URL mergeUrl(URL remoteUrl, Map<String, String> localParametersMap) {
 
         Map<String, String> map = new HashMap<>();
+
+        // 获取提供者url的所有参数
         Map<String, String> remoteMap = remoteUrl.getParameters();
 
+        // 移除provider相关的参数
         if (remoteMap != null && remoteMap.size() > 0) {
             map.putAll(remoteMap);
 
@@ -78,38 +81,48 @@ public class DefaultProviderURLMergeProcessor implements ProviderURLMergeProcess
             map.remove(DEFAULT_KEY_PREFIX + Constants.TRANSPORTER_KEY);
         }
 
+        // 从consumer端的参数集合中，移除无用的参数集合，将剩下的参数放入map中
         if (localParametersMap != null && localParametersMap.size() > 0) {
+
+            // 生成副本
             Map<String, String> copyOfLocalMap = new HashMap<>(localParametersMap);
 
-            if(map.containsKey(GROUP_KEY)){
+            // group、version和generic以provider端为准，因此如果provider有配置这三个key，就移除consumer参数副本中的这三个key
+            if (map.containsKey(GROUP_KEY)) {
                 copyOfLocalMap.remove(GROUP_KEY);
             }
-            if(map.containsKey(VERSION_KEY)){
+            if (map.containsKey(VERSION_KEY)) {
                 copyOfLocalMap.remove(VERSION_KEY);
             }
             if (map.containsKey(GENERIC_KEY)) {
                 copyOfLocalMap.remove(GENERIC_KEY);
             }
 
+            // 移除：release、dubbo、methods、timestamp、dubbo.tag
             copyOfLocalMap.remove(RELEASE_KEY);
             copyOfLocalMap.remove(DUBBO_VERSION_KEY);
             copyOfLocalMap.remove(METHODS_KEY);
             copyOfLocalMap.remove(TIMESTAMP_KEY);
             copyOfLocalMap.remove(TAG_KEY);
 
+            // 将consumer参数副本中剩余的参数放入集合中
             map.putAll(copyOfLocalMap);
 
             if (remoteMap != null) {
+
+                // 将provider中，application参数的值，作为remote.application参数的值放入map中
                 map.put(REMOTE_APPLICATION_KEY, remoteMap.get(APPLICATION_KEY));
 
+                // 如果provider和consumer都配置了filter，则合并相关配置
                 // Combine filters and listeners on Provider and Consumer
                 String remoteFilter = remoteMap.get(REFERENCE_FILTER_KEY);
                 String localFilter = copyOfLocalMap.get(REFERENCE_FILTER_KEY);
-                if (remoteFilter != null && remoteFilter.length() > 0
-                        && localFilter != null && localFilter.length() > 0) {
+                if (remoteFilter != null && remoteFilter.length() > 0 && localFilter != null
+                    && localFilter.length() > 0) {
                     map.put(REFERENCE_FILTER_KEY, remoteFilter + "," + localFilter);
                 }
 
+                // 如果provider和consumer都配置了listener，则合并相关配置
                 String remoteListener = remoteMap.get(INVOKER_LISTENER_KEY);
                 String localListener = copyOfLocalMap.get(INVOKER_LISTENER_KEY);
                 if (remoteListener != null && remoteListener.length() > 0
