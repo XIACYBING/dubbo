@@ -38,6 +38,7 @@
         <module>dubbo-demo-http-json-rpc</module>
         <module>dubbo-demo-utils</module>
         <module>dubbo-demo-alibaba-http</module>
+        <module>dubbo-demo-async-proxy</module>
     </modules>
 
     <dependencyManagement>

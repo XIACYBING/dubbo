@@ -1,0 +1,1 @@
+startStopListener=org.apache.dubbo.config.PrintAsyncProxyInfoListener
