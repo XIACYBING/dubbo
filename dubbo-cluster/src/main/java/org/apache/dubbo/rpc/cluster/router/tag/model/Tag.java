@@ -19,10 +19,18 @@ package org.apache.dubbo.rpc.cluster.router.tag.model;
 import java.util.List;
 
 /**
- *
+ * 标签路由 - 标签信息
  */
 public class Tag {
+
+    /**
+     * 标签名称
+     */
     private String name;
+
+    /**
+     * 被打标的提供者集合
+     */
     private List<String> addresses;
 
     public String getName() {

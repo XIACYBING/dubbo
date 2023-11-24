@@ -18,9 +18,16 @@ package org.apache.dubbo.rpc.cluster.router.condition.config;
 
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.constants.CommonConstants;
+import org.apache.dubbo.rpc.Invocation;
+
+import java.util.List;
 
 /**
  * Application level router, "application.condition-router"
+ * <p>
+ * 应用级别的路由
+ *
+ * @see ListenableRouter#route(List, URL, Invocation)
  */
 public class AppRouter extends ListenableRouter {
     public static final String NAME = "APP_ROUTER";

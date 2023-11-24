@@ -50,24 +50,50 @@ import static org.apache.dubbo.rpc.cluster.Constants.RULE_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.RUNTIME_KEY;
 
 /**
+ * 基于条件表达式的路由实现类，2.7.x及以上版本，请参考{@link org.apache.dubbo.rpc.cluster.router.condition.config.ServiceRouter}和
+ * {@link org.apache.dubbo.rpc.cluster.router.condition.config.AppRouter}
+ * <p>
  * ConditionRouter
  * It supports the conditional routing configured by "override://", in 2.6.x,
  * refer to https://dubbo.apache.org/en/docs/v2.7/user/examples/routing-rule/ .
  * For 2.7.x and later, please refer to {@link org.apache.dubbo.rpc.cluster.router.condition.config.ServiceRouter}
  * and {@link org.apache.dubbo.rpc.cluster.router.condition.config.AppRouter}
  * refer to https://dubbo.apache.org/zh/docs/v2.7/user/examples/routing-rule/ .
+ *
  * @see <a href="https://dubbo.apache.org/zh/docs/advanced/routing-rule"/>
+ * @see <a href="https://cn.dubbo.apache.org/zh-cn/docsv2.7/user/examples/routing-rule/"/>
  * @see <a href="https://my.oschina.net/u/146130/blog/1592235"/>
  */
 public class ConditionRouter extends AbstractRouter {
     public static final String NAME = "condition";
 
     private static final Logger logger = LoggerFactory.getLogger(ConditionRouter.class);
+
+    /**
+     * 用于切割路由规则的表达式
+     */
     protected static final Pattern ROUTE_PATTERN = Pattern.compile("([&!=,]*)\\s*([^&!=,\\s]+)");
+
+    /**
+     * 支持方法入参的匹配，当前表达式用于提取条件key上的参数索引：arguments[0]，代表第一个参数，以此类推
+     *
+     * @see #matchArguments(java.util.Map.Entry, org.apache.dubbo.rpc.Invocation)
+     */
     protected static Pattern ARGUMENTS_PATTERN = Pattern.compile("arguments\\[([0-9]+)\\]");
+
+    /**
+     * consumer条件集合，有任一条件不满足，则无需进行当前过滤
+     */
     protected Map<String, MatchPair> whenCondition;
+
+    /**
+     * provider条件集合，用于过滤可用的invoker
+     */
     protected Map<String, MatchPair> thenCondition;
 
+    /**
+     * 是否启用当前规则
+     */
     private boolean enabled;
 
     public ConditionRouter(String rule, boolean force, boolean enabled) {
@@ -99,10 +125,19 @@ public class ConditionRouter extends AbstractRouter {
 
             // 以 => 为分割线，前面部分是消费者规则（scope为application时限制应用名，scope为service时限制方法名），后面部分为提供者规则（那些地址的提供者可以提供服务）
             int i = rule.indexOf("=>");
+
+            // 切割出消费者规则
             String whenRule = i < 0 ? null : rule.substring(0, i).trim();
+
+            // 切割出提供者规则
             String thenRule = i < 0 ? rule.trim() : rule.substring(i + 2).trim();
-            Map<String, MatchPair> when = StringUtils.isBlank(whenRule) || "true".equals(whenRule) ? new HashMap<String, MatchPair>() : parseRule(whenRule);
-            Map<String, MatchPair> then = StringUtils.isBlank(thenRule) || "false".equals(thenRule) ? null : parseRule(thenRule);
+
+            // 解析消费者规则和提供者规则
+            // when和then的Map集合中，key为规则key，支持服务调用信息（method、argument...）、URL本身字段（protocol、host、port...）和URL上的所有参数（application...）
+            Map<String, MatchPair> when =
+                StringUtils.isBlank(whenRule) || "true".equals(whenRule) ? new HashMap<>() : parseRule(whenRule);
+            Map<String, MatchPair> then =
+                StringUtils.isBlank(thenRule) || "false".equals(thenRule) ? null : parseRule(thenRule);
             // NOTE: It should be determined on the business level whether the `When condition` can be empty or not.
             this.whenCondition = when;
             this.thenCondition = then;
@@ -157,27 +192,26 @@ public class ConditionRouter extends AbstractRouter {
             // The Value in the KV part.
             else if ("!=".equals(separator)) {
                 if (pair == null) {
-                    throw new ParseException("Illegal route rule \""
-                            + rule + "\", The error char '" + separator
-                            + "' at index " + matcher.start() + " before \""
-                            + content + "\".", matcher.start());
+                    throw new ParseException(
+                        "Illegal route rule \"" + rule + "\", The error char '" + separator + "' at index "
+                            + matcher.start() + " before \"" + content + "\".", matcher.start());
                 }
 
                 values = pair.mismatches;
                 values.add(content);
             }
             // The Value in the KV part, if Value have more than one items.
-            else if (",".equals(separator)) { // Should be separated by ','
+            // Should be separated by ','
+            else if (",".equals(separator)) {
                 if (values == null || values.isEmpty()) {
-                    throw new ParseException("Illegal route rule \""
-                            + rule + "\", The error char '" + separator
-                            + "' at index " + matcher.start() + " before \""
-                            + content + "\".", matcher.start());
+                    throw new ParseException(
+                        "Illegal route rule \"" + rule + "\", The error char '" + separator + "' at index "
+                            + matcher.start() + " before \"" + content + "\".", matcher.start());
                 }
                 values.add(content);
             } else {
-                throw new ParseException("Illegal route rule \"" + rule
-                        + "\", The error char '" + separator + "' at index "
+                throw new ParseException(
+                    "Illegal route rule \"" + rule + "\", The error char '" + separator + "' at index "
                         + matcher.start() + " before \"" + content + "\".", matcher.start());
             }
         }
@@ -195,15 +229,20 @@ public class ConditionRouter extends AbstractRouter {
             return invokers;
         }
         try {
-            // 如果对当前消费者无路由限制，则直接返回所有可用的invoker
+            // 如果对当前消费者无路由限制，或存在不符合条件的情况（无需过滤），则直接返回所有可用的invoker
             if (!matchWhen(url, invocation)) {
                 return invokers;
             }
             List<Invoker<T>> result = new ArrayList<Invoker<T>>();
+
+            // 如果when不为空，但是then为空，说明当前条件规则不允许任何提供者提供服务，可能在黑名单上，打印警告日志并返回空集合
             if (thenCondition == null) {
-                logger.warn("The current consumer in the service blacklist. consumer: " + NetUtils.getLocalHost() + ", service: " + url.getServiceKey());
+                logger.warn("The current consumer in the service blacklist. consumer: " + NetUtils.getLocalHost()
+                    + ", service: " + url.getServiceKey());
                 return result;
             }
+
+            // 否则需要循环匹配then规则，判断invokers是否符合要求
             for (Invoker<T> invoker : invokers) {
                 if (matchThen(invoker.getUrl(), url)) {
                     result.add(invoker);
@@ -212,7 +251,9 @@ public class ConditionRouter extends AbstractRouter {
             if (!result.isEmpty()) {
                 return result;
             } else if (force) {
-                logger.warn("The route result is empty and force execute. consumer: " + NetUtils.getLocalHost() + ", service: " + url.getServiceKey() + ", router: " + url.getParameterAndDecoded(RULE_KEY));
+                logger.warn(
+                    "The route result is empty and force execute. consumer: " + NetUtils.getLocalHost() + ", service: "
+                        + url.getServiceKey() + ", router: " + url.getParameterAndDecoded(RULE_KEY));
                 return result;
             }
         } catch (Throwable t) {
@@ -224,7 +265,7 @@ public class ConditionRouter extends AbstractRouter {
     @Override
     public boolean isRuntime() {
         // We always return true for previously defined Router, that is, old Router doesn't support cache anymore.
-//        return true;
+        //        return true;
         return this.url.getParameter(RUNTIME_KEY, false);
     }
 
@@ -233,6 +274,9 @@ public class ConditionRouter extends AbstractRouter {
         return url;
     }
 
+    /**
+     * @return false/当前有when限制，且有条件不符合要求；代表需要进行invoker路由过滤
+     */
     boolean matchWhen(URL url, Invocation invocation) {
         return CollectionUtils.isEmptyMap(whenCondition) || matchCondition(whenCondition, url, null, invocation);
     }
@@ -293,9 +337,6 @@ public class ConditionRouter extends AbstractRouter {
      * Examples would be like this:
      * "arguments[0]=1", whenCondition is that the first argument is equal to '1'.
      * "arguments[1]=a", whenCondition is that the second argument is equal to 'a'.
-     * @param matchPair
-     * @param invocation
-     * @return
      */
     public boolean matchArguments(Map.Entry<String, MatchPair> matchPair, Invocation invocation) {
         try {

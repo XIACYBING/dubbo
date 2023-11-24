@@ -21,6 +21,7 @@ import org.apache.dubbo.common.config.configcenter.ConfigChangeType;
 import org.apache.dubbo.common.config.configcenter.ConfigChangedEvent;
 import org.apache.dubbo.common.config.configcenter.ConfigurationListener;
 import org.apache.dubbo.common.config.configcenter.DynamicConfiguration;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.CollectionUtils;
@@ -40,13 +41,34 @@ import java.util.stream.Collectors;
 
 /**
  * Abstract router which listens to dynamic configuration
+ *
+ * <ol>
+ *  {@link ServiceRouter}和{@link AppRouter}都继承了{@link ListenableRouter}，但是没有重写任何方法，只有以下两个区别；
+ *
+ *  <li>设置了{@link #priority}的值，{@link ServiceRouter#SERVICE_ROUTER_DEFAULT_PRIORITY 140}小于
+ *  {@link AppRouter#APP_ROUTER_DEFAULT_PRIORITY 150}，因此{@link ServiceRouter}要优先于{@link AppRouter}执行</li>
+ *
+ *  <li><@code ruleKey} 规则key不一样，{@link ServiceRouter}的规则key是{@code {interface}:[version]:[group]}三部分构成，
+ *  而{@link AppRouter}则是以{@link URL}中的{@link CommonConstants#APPLICATION_KEY}的值作为规则key，这让两者区分了要监听的配置内容</li>
+ * </ol>
+ *
+ * @see ServiceRouter
+ * @see AppRouter
  */
 public abstract class ListenableRouter extends AbstractRouter implements ConfigurationListener {
     public static final String NAME = "LISTENABLE_ROUTER";
     private static final String RULE_SUFFIX = ".condition-router";
 
     private static final Logger logger = LoggerFactory.getLogger(ListenableRouter.class);
+
+    /**
+     * 条件路由规则
+     */
     private ConditionRouterRule routerRule;
+
+    /**
+     * 条件路由器集合
+     */
     private List<ConditionRouter> conditionRouters = Collections.emptyList();
 
     public ListenableRouter(URL url, String ruleKey) {
@@ -67,7 +89,11 @@ public abstract class ListenableRouter extends AbstractRouter implements Configu
             conditionRouters = Collections.emptyList();
         } else {
             try {
+
+                // 生成条件路由规则
                 routerRule = ConditionRuleParser.parse(event.getContent());
+
+                // 根据条件路由规则生成条件路由器
                 generateConditions(routerRule);
             } catch (Exception e) {
                 logger.error("Failed to parse the raw condition rule and it will not take effect, please check " +
@@ -106,19 +132,29 @@ public abstract class ListenableRouter extends AbstractRouter implements Configu
 
     private void generateConditions(ConditionRouterRule rule) {
         if (rule != null && rule.isValid()) {
-            this.conditionRouters = rule.getConditions()
-                    .stream()
-                    .map(condition -> new ConditionRouter(condition, rule.isForce(), rule.isEnabled()))
-                    .collect(Collectors.toList());
+            this.conditionRouters = rule
+                .getConditions()
+                .stream()
+                .map(condition -> new ConditionRouter(condition, rule.isForce(), rule.isEnabled()))
+                .collect(Collectors.toList());
         }
     }
 
+    /**
+     * 初始化路由规则
+     */
     private synchronized void init(String ruleKey) {
         if (StringUtils.isEmpty(ruleKey)) {
             return;
         }
+
+        // 生成要监听配置的key
         String routerKey = ruleKey + RULE_SUFFIX;
+
+        // 注册监听器
         ruleRepository.addListener(routerKey, this);
+
+        // 获取当前的配置，不为空的话就手动调用处理方法进行配置处理
         String rule = ruleRepository.getRule(routerKey, DynamicConfiguration.DEFAULT_GROUP);
         if (StringUtils.isNotEmpty(rule)) {
             this.process(new ConfigChangedEvent(routerKey, DynamicConfiguration.DEFAULT_GROUP, rule));

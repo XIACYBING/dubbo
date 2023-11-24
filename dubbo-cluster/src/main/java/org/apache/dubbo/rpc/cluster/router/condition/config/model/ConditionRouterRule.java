@@ -27,6 +27,9 @@ public class ConditionRouterRule extends AbstractRouterRule {
     public ConditionRouterRule() {
     }
 
+    /**
+     * 条件规则集合
+     */
     private List<String> conditions;
 
     public List<String> getConditions() {

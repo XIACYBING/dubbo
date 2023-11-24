@@ -21,9 +21,28 @@ import org.apache.dubbo.common.extension.ExtensionLoader;
 import org.apache.dubbo.rpc.cluster.Router;
 import org.apache.dubbo.rpc.cluster.governance.GovernanceRuleRepository;
 
+/**
+ * 抽象路由规则
+ */
 public abstract class AbstractRouter implements Router {
+
+    /**
+     * 路由规则优先级
+     */
     protected int priority = DEFAULT_PRIORITY;
+
+    /**
+     * 当路由结果为空时，是否强制执行，如果不强制执行，路由结果为空的路由规则将自动失效。该字段默认值为 false。
+     * <p>
+     * false：路由结果为空时，失效空结果
+     * <p>
+     * 当前该字段无用
+     */
     protected boolean force = false;
+
+    /**
+     * 路由规则相关url
+     */
     protected URL url;
 
     protected GovernanceRuleRepository ruleRepository;

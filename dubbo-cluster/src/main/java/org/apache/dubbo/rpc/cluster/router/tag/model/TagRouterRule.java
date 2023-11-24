@@ -43,7 +43,14 @@ import java.util.stream.Collectors;
 public class TagRouterRule extends AbstractRouterRule {
     private List<Tag> tags;
 
+    /**
+     * <提供者IP地址, 标签名称集合>
+     */
     private Map<String, List<String>> addressToTagnames = new HashMap<>();
+
+    /**
+     * <标签名称, 提供者IP地址集合>
+     */
     private Map<String, List<String>> tagnameToAddresses = new HashMap<>();
 
     public void init() {
@@ -51,8 +58,13 @@ public class TagRouterRule extends AbstractRouterRule {
             return;
         }
 
+        // 将路由标签按照标签和地址纬度进行分组
         tags.stream().filter(tag -> CollectionUtils.isNotEmpty(tag.getAddresses())).forEach(tag -> {
+
+            // 标签 -> 地址
             tagnameToAddresses.put(tag.getName(), tag.getAddresses());
+
+            // 地址 -> 标签
             tag.getAddresses().forEach(addr -> {
                 List<String> tagNames = addressToTagnames.computeIfAbsent(addr, k -> new ArrayList<>());
                 tagNames.add(tag.getName());
