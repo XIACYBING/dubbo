@@ -1237,7 +1237,10 @@ class URL implements Serializable {
             return this;
         }
 
+        // 入参parameters中所有参数是否和原来的参数相等的标识
         boolean hasAndEqual = true;
+
+        // 把于入参parameters中的所有参数，和url上的对应参数进行比较，判断是否有值不相等的参数
         for (Map.Entry<String, String> entry : parameters.entrySet()) {
             String value = getParameters().get(entry.getKey());
             if (value == null) {
@@ -1252,13 +1255,18 @@ class URL implements Serializable {
                 }
             }
         }
+
+        // 如果所有参数都一样，直接返回
         // return immediately if there's no change
         if (hasAndEqual) {
             return this;
         }
 
+        // 否则说明有不一样的，用入参parameters中的参数覆盖当前URL中的同名参数
         Map<String, String> map = new HashMap<>(getParameters());
         map.putAll(parameters);
+
+        // 生成新的URL
         return new URL(getProtocol(), username, password, host, port, path, map);
     }
 

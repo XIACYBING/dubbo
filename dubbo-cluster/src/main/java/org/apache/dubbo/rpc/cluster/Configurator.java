@@ -33,7 +33,11 @@ import static org.apache.dubbo.rpc.cluster.Constants.PRIORITY_KEY;
 
 /**
  * Configurator. (SPI, Prototype, ThreadSafe)
+ * <p>
+ * 动态配置URL，来源于注册中心，可通过服务治理控制台写入，用于重写提供者和消费者URL的某些配置信息
  *
+ * @see org.apache.dubbo.rpc.cluster.configurator.override.OverrideConfigurator
+ * @see org.apache.dubbo.rpc.cluster.configurator.absent.AbsentConfigurator
  */
 public interface Configurator extends Comparable<Configurator> {
 
@@ -46,16 +50,20 @@ public interface Configurator extends Comparable<Configurator> {
 
     /**
      * Configure the provider url.
+     * <p>
+     * 配置/重写提供者/消费者的URL的配置信息
      *
      * @param url - old provider url.
      * @return new provider url.
+     * @see org.apache.dubbo.rpc.cluster.configurator.AbstractConfigurator#configure(URL)
      */
     URL configure(URL url);
-
 
     /**
      * Convert override urls to map for use when re-refer. Send all rules every time, the urls will be reassembled and
      * calculated
+     *
+     * 转换{@link URL}为{@link Configurator}
      *
      * URL contract:
      * <ol>
@@ -70,28 +78,43 @@ public interface Configurator extends Comparable<Configurator> {
      * @return converted configurator list
      */
     static Optional<List<Configurator>> toConfigurators(List<URL> urls) {
+
+        // 为空直接返回空集合
         if (CollectionUtils.isEmpty(urls)) {
             return Optional.empty();
         }
 
-        ConfiguratorFactory configuratorFactory = ExtensionLoader.getExtensionLoader(ConfiguratorFactory.class)
-                .getAdaptiveExtension();
+        // 获取Configurator工厂的适配器
+        ConfiguratorFactory configuratorFactory =
+            ExtensionLoader.getExtensionLoader(ConfiguratorFactory.class).getAdaptiveExtension();
 
         List<Configurator> configurators = new ArrayList<>(urls.size());
         for (URL url : urls) {
+
+            // 如果存在empty协议的URL，清空配置器集合，并中止循环
             if (EMPTY_PROTOCOL.equals(url.getProtocol())) {
                 configurators.clear();
                 break;
             }
+
+            // 获取当前循环URL的所有参数
             Map<String, String> override = new HashMap<>(url.getParameters());
             //The anyhost parameter of override may be added automatically, it can't change the judgement of changing url
             override.remove(ANYHOST_KEY);
+
+            // 如果URL上除了any-host意外没有其他参数，则放弃当前URL
             if (CollectionUtils.isEmptyMap(override)) {
                 continue;
             }
+
+            // 否则通过配置器工厂将URL转换为配置器
             configurators.add(configuratorFactory.getConfigurator(url));
         }
+
+        // 排序
         Collections.sort(configurators);
+
+        // 返回配置器集合，Optional
         return Optional.of(configurators);
     }
 

@@ -21,7 +21,6 @@ import org.apache.dubbo.rpc.cluster.configurator.AbstractConfigurator;
 
 /**
  * OverrideConfigurator
- *
  */
 public class OverrideConfigurator extends AbstractConfigurator {
 
@@ -29,6 +28,9 @@ public class OverrideConfigurator extends AbstractConfigurator {
         super(url);
     }
 
+    /**
+     * {@code configUrl}上的参数将覆盖{@code currentUrl}上的同名参数
+     */
     @Override
     public URL doConfigure(URL currentUrl, URL configUrl) {
         return currentUrl.addParameters(configUrl.getParameters());

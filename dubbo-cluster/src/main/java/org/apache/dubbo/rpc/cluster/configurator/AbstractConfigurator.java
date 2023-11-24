@@ -47,8 +47,18 @@ import static org.apache.dubbo.rpc.cluster.Constants.OVERRIDE_PROVIDERS_KEY;
  */
 public abstract class AbstractConfigurator implements Configurator {
 
+    /**
+     * 波浪线
+     * <ol>
+     *     <li>以波浪线开头的url参数，不可被替换</li>
+     *     <li>以波浪线开头的url参数，要求在配置器url上的值（不是{@code *}）和在被配置url上的值一致，否之配置器url无法重写被配置url上的参数</li>
+     * </ol>
+     */
     private static final String TILDE = "~";
 
+    /**
+     * 配置器URL
+     */
     private final URL configuratorUrl;
 
     public AbstractConfigurator(URL url) {
@@ -65,27 +75,38 @@ public abstract class AbstractConfigurator implements Configurator {
 
     @Override
     public URL configure(URL url) {
+
+        // 如果配置器关闭 || 配置器host为空 || 要配置的url为空 || 要配置url的host为空，则不进行任何重写，直接返回
         // If override url is not enabled or is invalid, just return.
-        if (!configuratorUrl.getParameter(ENABLED_KEY, true) || configuratorUrl.getHost() == null || url == null || url.getHost() == null) {
+        if (!configuratorUrl.getParameter(ENABLED_KEY, true) || configuratorUrl.getHost() == null || url == null
+            || url.getHost() == null) {
             return url;
         }
-        /*
-         * This if branch is created since 2.7.0.
-         */
+
+        // 2.7.0版本后，有configVersion参数
+        // This if branch is created since 2.7.0.
         String apiVersion = configuratorUrl.getParameter(CONFIG_VERSION_KEY);
+
+        // 如果是2.7.0以后版本，
         if (StringUtils.isNotEmpty(apiVersion)) {
             String currentSide = url.getParameter(SIDE_KEY);
             String configuratorSide = configuratorUrl.getParameter(SIDE_KEY);
-            if (currentSide.equals(configuratorSide) && CONSUMER.equals(configuratorSide) && 0 == configuratorUrl.getPort()) {
+
+            // 如果是消费端，则使用localHost进行处理
+            if (currentSide.equals(configuratorSide) && CONSUMER.equals(configuratorSide)
+                && 0 == configuratorUrl.getPort()) {
                 url = configureIfMatch(NetUtils.getLocalHost(), url);
-            } else if (currentSide.equals(configuratorSide) && PROVIDER.equals(configuratorSide) &&
-                    url.getPort() == configuratorUrl.getPort()) {
+            }
+
+            // 如果是提供段，则使用url上的host进行处理
+            else if (currentSide.equals(configuratorSide) && PROVIDER.equals(configuratorSide)
+                && url.getPort() == configuratorUrl.getPort()) {
                 url = configureIfMatch(url.getHost(), url);
             }
         }
-        /*
-         * This else branch is deprecated and is left only to keep compatibility with versions before 2.7.0
-         */
+
+        // 2.7.0以前版本的处理
+        // This else branch is deprecated and is left only to keep compatibility with versions before 2.7.0
         else {
             url = configureDeprecated(url);
         }
@@ -94,8 +115,14 @@ public abstract class AbstractConfigurator implements Configurator {
 
     @Deprecated
     private URL configureDeprecated(URL url) {
-        // If override url has port, means it is a provider address. We want to control a specific provider with this override url, it may take effect on the specific provider instance or on consumers holding this provider instance.
+
+        // 配置器url上有指定端口，意味着配置器URL上指定的是一个提供者的地址，而我们想要通过该配置器URL控制一个指定的提供者
+        // 而这个控制器URL也只对对应的提供者实例，或持有该提供者的消费者生效
+        // If override url has port, means it is a provider address. We want to control a specific provider with this override url,
+        // it may take effect on the specific provider instance or on consumers holding this provider instance.
         if (configuratorUrl.getPort() != 0) {
+
+            // 匹配入参url上的端口是否和配置器url一致，如果一致，说明当前配置器url可以应用到入参url上
             if (url.getPort() == configuratorUrl.getPort()) {
                 return configureIfMatch(url.getHost(), url);
             }
@@ -116,26 +143,38 @@ public abstract class AbstractConfigurator implements Configurator {
         return url;
     }
 
+    /**
+     * 在入参url符合要求的情况下，对其进行配置重写
+     */
     private URL configureIfMatch(String host, URL url) {
+
+        // 第一重判断：如果配置器url的host是不指定any-host || 入参的host等于配置器url的host，则进行配置重写
         if (ANYHOST_VALUE.equals(configuratorUrl.getHost()) || host.equals(configuratorUrl.getHost())) {
             // TODO, to support wildcards
             String providers = configuratorUrl.getParameter(OVERRIDE_PROVIDERS_KEY);
-            if (StringUtils.isEmpty(providers) || providers.contains(url.getAddress()) || providers.contains(ANYHOST_VALUE)) {
-                String configApplication = configuratorUrl.getParameter(APPLICATION_KEY,
-                        configuratorUrl.getUsername());
-                String currentApplication = url.getParameter(APPLICATION_KEY, url.getUsername());
-                if (configApplication == null || ANY_VALUE.equals(configApplication)
-                        || configApplication.equals(currentApplication)) {
 
+            // 第二重判断：配置器中未指定要重写的地址 || 要重写的地址中包含入参url的地址 || 要重写的地址中包含any-host
+            if (StringUtils.isEmpty(providers) || providers.contains(url.getAddress()) || providers.contains(
+                ANYHOST_VALUE)) {
+                String configApplication = configuratorUrl.getParameter(APPLICATION_KEY, configuratorUrl.getUsername());
+                String currentApplication = url.getParameter(APPLICATION_KEY, url.getUsername());
+
+                // 第三重判断：和第二重判断一样，但是这里判断的是应用
+                if (configApplication == null || ANY_VALUE.equals(configApplication) || configApplication.equals(
+                    currentApplication)) {
+
+                    // 提取所有以~（波浪线）开头的参数
                     Set<String> tildeKeys = new HashSet<>();
                     for (Map.Entry<String, String> entry : configuratorUrl.getParameters().entrySet()) {
                         String key = entry.getKey();
                         String value = entry.getValue();
                         String tildeKey = StringUtils.isNotEmpty(key) && key.startsWith(TILDE) ? key : null;
 
+                        // 如果配置器url与入参url中以~开头的参数，或application，或side的值不相同，则不使用该配置器url重写入参url
+                        // 配置url上值不是*，如果是*，意味着所有值都可以，那么就无需比较两个值是不是相等
                         if (tildeKey != null || APPLICATION_KEY.equals(key) || SIDE_KEY.equals(key)) {
-                            if (value != null && !ANY_VALUE.equals(value)
-                                    && !value.equals(url.getParameter(tildeKey != null ? key.substring(1) : key))) {
+                            if (value != null && !ANY_VALUE.equals(value) && !value.equals(
+                                url.getParameter(tildeKey != null ? key.substring(1) : key))) {
                                 return url;
                             }
                         }
@@ -145,6 +184,7 @@ public abstract class AbstractConfigurator implements Configurator {
                         }
                     }
 
+                    // 这些参数将会从配置器URL上移除，可能是一些不可动态修改的参数
                     Set<String> conditionKeys = new HashSet<>();
                     conditionKeys.add(CATEGORY_KEY);
                     conditionKeys.add(Constants.CHECK_KEY);
@@ -166,6 +206,15 @@ public abstract class AbstractConfigurator implements Configurator {
         return url;
     }
 
+    /**
+     * 执行配置：将{@code configUrl}上的参数赋予{@code currentUrl}
+     *
+     * @param currentUrl 要被操作的URL
+     * @param configUrl  配置URL
+     * @return 返回配置后的URL
+     * @see org.apache.dubbo.rpc.cluster.configurator.override.OverrideConfigurator#doConfigure(URL, URL)
+     * @see org.apache.dubbo.rpc.cluster.configurator.absent.AbsentConfigurator#doConfigure(URL, URL)
+     */
     protected abstract URL doConfigure(URL currentUrl, URL configUrl);
 
 }

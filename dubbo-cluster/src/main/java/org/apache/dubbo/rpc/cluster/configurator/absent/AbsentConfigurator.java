@@ -21,7 +21,6 @@ import org.apache.dubbo.rpc.cluster.configurator.AbstractConfigurator;
 
 /**
  * AbsentConfigurator
- *
  */
 public class AbsentConfigurator extends AbstractConfigurator {
 
@@ -29,6 +28,9 @@ public class AbsentConfigurator extends AbstractConfigurator {
         super(url);
     }
 
+    /**
+     * 将{@code currentUrl}上不存在，但是{@code configUrl}上存在的参数，赋予{@code currentUrl}
+     */
     @Override
     public URL doConfigure(URL currentUrl, URL configUrl) {
         return currentUrl.addParametersIfAbsent(configUrl.getParameters());
