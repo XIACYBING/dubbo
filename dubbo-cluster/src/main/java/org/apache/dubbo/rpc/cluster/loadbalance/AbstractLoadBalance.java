@@ -36,6 +36,7 @@ import static org.apache.dubbo.rpc.cluster.Constants.WEIGHT_KEY;
  * AbstractLoadBalance
  */
 public abstract class AbstractLoadBalance implements LoadBalance {
+
     /**
      * Calculate the weight according to the uptime proportion of warmup time
      * the new weight will be within 1(inclusive) to weight(inclusive)
@@ -46,18 +47,29 @@ public abstract class AbstractLoadBalance implements LoadBalance {
      * @return weight which takes warmup into account
      */
     static int calculateWarmupWeight(int uptime, int warmup, int weight) {
-        int ww = (int) ( uptime / ((float) warmup / weight));
+
+        // 根据启动毫秒数、预热毫秒数和原权重，计算出一个适合当前情况的权重
+        // 随着启动毫秒数uptime的增大，权重会慢慢变大，逐渐大于1，大于1之后就是采用原权重了
+        int ww = (int)(uptime / ((float)warmup / weight));
+
+        // 如果权重小于1，则返回1（1是最小有效权重），否则原权重和新权重，两者取小
         return ww < 1 ? 1 : (Math.min(ww, weight));
     }
 
     @Override
     public <T> Invoker<T> select(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+
+        // 提供者集合为空，直接返回null
         if (CollectionUtils.isEmpty(invokers)) {
             return null;
         }
+
+        // 只有一个，直接返回这个
         if (invokers.size() == 1) {
             return invokers.get(0);
         }
+
+        // 否则执行子类的负载均衡算法，获取到一个提供者
         return doSelect(invokers, url, invocation);
     }
 
@@ -75,19 +87,39 @@ public abstract class AbstractLoadBalance implements LoadBalance {
     int getWeight(Invoker<?> invoker, Invocation invocation) {
         int weight;
         URL url = invoker.getUrl();
+
+        // 如果是RegistryService的url，则直接从url上获取权重
+        // 多注册中心的场景，在多个注册中心中进行负载    todo 不清楚是啥场景
         // Multiple registry scenario, load balance among multiple registries.
         if (REGISTRY_SERVICE_REFERENCE_PATH.equals(url.getServiceInterface())) {
             weight = url.getParameter(REGISTRY_KEY + "." + WEIGHT_KEY, DEFAULT_WEIGHT);
-        } else {
+        }
+
+        // 否则进行权重计算
+        else {
+
+            // 获取对应方法下的权重配置 todo 应该支持每个方法级别的权重配置
             weight = url.getMethodParameter(invocation.getMethodName(), WEIGHT_KEY, DEFAULT_WEIGHT);
             if (weight > 0) {
+
+                // 获取提供者的启动时间
                 long timestamp = invoker.getUrl().getParameter(TIMESTAMP_KEY, 0L);
+
+                // 启动时间大于0：正常配置
                 if (timestamp > 0L) {
+
+                    // 获取已启动的毫秒数
                     long uptime = System.currentTimeMillis() - timestamp;
+
+                    // 已启动时间小于0，说明消费者和提供者的机器时间不一致，返回最低有效权重1
                     if (uptime < 0) {
                         return 1;
                     }
+
+                    // 获取提供者配置的预热时间，默认是10分钟
                     int warmup = invoker.getUrl().getParameter(WARMUP_KEY, DEFAULT_WARMUP);
+
+                    // 启动时间大于0，但是小于预热时间，则需要根据启动时间、预热时间和原权重计算出一个新权重
                     if (uptime > 0 && uptime < warmup) {
                         weight = calculateWarmupWeight((int)uptime, warmup, weight);
                     }

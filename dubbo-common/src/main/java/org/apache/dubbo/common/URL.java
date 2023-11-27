@@ -142,6 +142,11 @@ class URL implements Serializable {
      */
     private final Map<String, String> parameters;
 
+    /**
+     * 方法参数，
+     *
+     * @see #toMethodParameters(Map)
+     */
     private final Map<String, Map<String, String>> methodParameters;
 
     // ==== cache ====
@@ -363,18 +368,37 @@ class URL implements Serializable {
             return methodParameters;
         }
 
+        // 提取方法字符串
         String methodsString = parameters.get(METHODS_KEY);
         if (StringUtils.isNotEmpty(methodsString)) {
+
+            // 用逗号分割成多个方法名称
             List<String> methods = StringUtils.splitToList(methodsString, ',');
+
+            // 循环入参parameters，从中提取出方法的相关参数
             for (Map.Entry<String, String> entry : parameters.entrySet()) {
+
+                // 参数名称
                 String key = entry.getKey();
+
+                // 循环方法名称，提取所有方法的相关参数
                 for (int i = 0; i < methods.size(); i++) {
+
+                    // 获取当前方法名称
                     String method = methods.get(i);
+
+                    // 获取方法名称的长度
                     int methodLen = method.length();
-                    if (key.length() > methodLen
-                            && key.startsWith(method)
-                            && key.charAt(methodLen) == '.') {//equals to: key.startsWith(method + '.')
+
+                    // 方法名称长度大于参数名称长度，且参数名称是以方法名称加.开头的
+                    // 比如方法名称是methodA，参数名称是methodA.paramA，则参数是方法的参数
+                    if (key.length() > methodLen && key.startsWith(method)
+                        && key.charAt(methodLen) == '.') {//equals to: key.startsWith(method + '.')
+
+                        // 切割参数名称，提取真正的参数名称
                         String realKey = key.substring(methodLen + 1);
+
+                        // 将方法和参数的映射加入集合中
                         URL.putMethodParameter(method, realKey, entry.getValue(), methodParameters);
                     }
                 }
@@ -1535,8 +1559,6 @@ class URL implements Serializable {
 
     /**
      * The format of return value is '{group}/{interfaceName}:{version}'
-     *
-     * @return
      */
     public String getServiceKey() {
         if (serviceKey != null) {

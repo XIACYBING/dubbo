@@ -29,6 +29,10 @@ import java.util.List;
 /**
  * 负载均衡接口，根据规则从{@code invokers}中选择出最合适的{@link Invoker}来处理请求
  * <p>
+ * 作用：将请求/其他形式的负载，按照一定的算法”均摊“到不同的服务节点上，避免服务集群中部分节点压力过大且资源进账，但是另外一部分节点比较空闲的情况
+ * <p>
+ * 合理的负载均衡算法，可以让每个服务节点都获取到适合自己处理能力的负载，实现处理能力和流量的合理分配
+ * <p>
  * LoadBalance. (SPI, Singleton, ThreadSafe)
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Load_balancing_(computing)">Load-Balancing</a>
