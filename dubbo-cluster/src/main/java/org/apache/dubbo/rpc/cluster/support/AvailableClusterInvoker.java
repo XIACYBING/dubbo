@@ -27,7 +27,8 @@ import java.util.List;
 
 /**
  * AvailableCluster
- *
+ * <p>
+ * 调用{@link Invoker#isAvailable()}为{@code true}的invoker，发起请求，只调用一次
  */
 public class AvailableClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
@@ -37,11 +38,15 @@ public class AvailableClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
     @Override
     public Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
+
+        // 循环invoker，判断可用性，找到第一个可用的invoker发起请求
         for (Invoker<T> invoker : invokers) {
             if (invoker.isAvailable()) {
                 return invoker.invoke(invocation);
             }
         }
+
+        // 所有invoker都不可用，抛出异常
         throw new RpcException("No provider available in " + invokers);
     }
 

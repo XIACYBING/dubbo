@@ -22,35 +22,54 @@ import org.apache.dubbo.rpc.Invocation;
 import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
 import org.apache.dubbo.rpc.cluster.support.AbstractClusterInvoker;
+import org.apache.dubbo.rpc.cluster.support.wrapper.AbstractCluster;
 
 /**
  * Different from {@link Filter}, ClusterInterceptor works at the outmost layer, before one specific address/invoker is picked.
+ *
+ * @see ConsumerContextClusterInterceptor
+ * @see ZoneAwareClusterInterceptor
  */
 @SPI
+@SuppressWarnings(value = {"AlibabaAbstractMethodOrInterfaceMethodMustUseJavadoc", "AlibabaClassMustHaveAuthor"})
 public interface ClusterInterceptor {
 
+    /**
+     * 前置拦截
+     */
     void before(AbstractClusterInvoker<?> clusterInvoker, Invocation invocation);
 
+    /**
+     * 后置拦截
+     */
     void after(AbstractClusterInvoker<?> clusterInvoker, Invocation invocation);
 
     /**
      * Does not need to override this method, override {@link #before(AbstractClusterInvoker, Invocation)}
      * and {@link #after(AbstractClusterInvoker, Invocation)}, methods to add your own logic expected to be
      * executed before and after invoke.
-     *
-     * @param clusterInvoker
-     * @param invocation
-     * @return
-     * @throws RpcException
+     * <p>
+     * 进行实际的调用
      */
     default Result intercept(AbstractClusterInvoker<?> clusterInvoker, Invocation invocation) throws RpcException {
         return clusterInvoker.invoke(invocation);
     }
 
+    /**
+     * 用来监听请求正常和异常的结果，当前监听器一般和{@link ClusterInterceptor}一起被实现，这样才能正常的被shiyong
+     *
+     * @see AbstractCluster.InterceptorInvokerNode#invoke(org.apache.dubbo.rpc.Invocation)
+     */
     interface Listener {
 
+        /**
+         * 监听正常请求
+         */
         void onMessage(Result appResponse, AbstractClusterInvoker<?> clusterInvoker, Invocation invocation);
 
+        /**
+         * 监听异常请求
+         */
         void onError(Throwable t, AbstractClusterInvoker<?> clusterInvoker, Invocation invocation);
     }
 }

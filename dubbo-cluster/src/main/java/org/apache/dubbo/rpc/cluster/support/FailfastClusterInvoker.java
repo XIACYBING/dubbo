@@ -32,7 +32,8 @@ import java.util.List;
  * Usually used for non-idempotent write operations
  *
  * <a href="http://en.wikipedia.org/wiki/Fail-fast">Fail-fast</a>
- *
+ * <p>
+ * 只请求一次，失败则抛出异常，不重试，适合有幂等需求的场景
  */
 public class FailfastClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
@@ -42,21 +43,27 @@ public class FailfastClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
     @Override
     public Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
+
+        // 校验invokers
         checkInvokers(invokers, invocation);
+
+        // 负载均衡获得一个可用的invoker
         Invoker<T> invoker = select(loadbalance, invocation, invokers, null);
+
+        // 发起调用，异常时则直接对外抛出异常，不重试
         try {
             return invoker.invoke(invocation);
         } catch (Throwable e) {
-            if (e instanceof RpcException && ((RpcException) e).isBiz()) { // biz exception.
-                throw (RpcException) e;
+            // biz exception.
+            if (e instanceof RpcException && ((RpcException)e).isBiz()) {
+                throw (RpcException)e;
             }
-            throw new RpcException(e instanceof RpcException ? ((RpcException) e).getCode() : 0,
-                    "Failfast invoke providers " + invoker.getUrl() + " " + loadbalance.getClass().getSimpleName()
-                            + " select from all providers " + invokers + " for service " + getInterface().getName()
-                            + " method " + invocation.getMethodName() + " on consumer " + NetUtils.getLocalHost()
-                            + " use dubbo version " + Version.getVersion()
-                            + ", but no luck to perform the invocation. Last error is: " + e.getMessage(),
-                    e.getCause() != null ? e.getCause() : e);
+            throw new RpcException(e instanceof RpcException ? ((RpcException)e).getCode() : 0,
+                "Failfast invoke providers " + invoker.getUrl() + " " + loadbalance.getClass().getSimpleName()
+                    + " select from all providers " + invokers + " for service " + getInterface().getName() + " method "
+                    + invocation.getMethodName() + " on consumer " + NetUtils.getLocalHost() + " use dubbo version "
+                    + Version.getVersion() + ", but no luck to perform the invocation. Last error is: "
+                    + e.getMessage(), e.getCause() != null ? e.getCause() : e);
         }
     }
 }

@@ -70,47 +70,63 @@ public class ZoneAwareClusterInvoker<T> extends AbstractClusterInvoker<T> {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Result doInvoke(Invocation invocation, final List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
+
+        // 首先从invokers中，获取到registry.preferred配置为true的invoker，该配置代表对应invoker最优先
+        // 筛选出第一个配置为true的invoker后，即可发起调用
         // First, pick the invoker (XXXClusterInvoker) that comes from the local registry, distinguish by a 'preferred' key.
         for (Invoker<T> invoker : invokers) {
-            ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>) invoker;
-            if (clusterInvoker.isAvailable() && clusterInvoker.getRegistryUrl()
-                    .getParameter(PREFER_REGISTRY_KEY, false)) {
+            ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>)invoker;
+            if (clusterInvoker.isAvailable() && clusterInvoker
+                .getRegistryUrl()
+                .getParameter(PREFER_REGISTRY_KEY, false)) {
                 return clusterInvoker.invoke(invocation);
             }
         }
 
+        // 如果没有，则通过请求配置的registry_zone，筛选到对应的invoker，进行调用
         // providers in the registry with the same zone
         String zone = invocation.getAttachment(REGISTRY_ZONE);
         if (StringUtils.isNotEmpty(zone)) {
             for (Invoker<T> invoker : invokers) {
-                ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>) invoker;
-                if (clusterInvoker.isAvailable() && zone.equals(clusterInvoker.getRegistryUrl().getParameter(PREFER_REGISTRY_WITH_ZONE_KEY))) {
+                ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>)invoker;
+                if (clusterInvoker.isAvailable() && zone.equals(
+                    clusterInvoker.getRegistryUrl().getParameter(PREFER_REGISTRY_WITH_ZONE_KEY))) {
                     return clusterInvoker.invoke(invocation);
                 }
             }
+
+            // 如果指定可registry_zone，但是没筛选到，且配置了registry_zone_force，则抛出异常
             String force = invocation.getAttachment(REGISTRY_ZONE_FORCE);
             if (StringUtils.isNotEmpty(force) && "true".equalsIgnoreCase(force)) {
-                throw new IllegalStateException("No registry instance in zone or no available providers in the registry, zone: "
-                        + zone
-                        + ", registries: " + invokers.stream().map(invoker -> ((MockClusterInvoker<T>) invoker).getRegistryUrl().toString()).collect(Collectors.joining(",")));
+                throw new IllegalStateException(
+                    "No registry instance in zone or no available providers in the registry, zone: " + zone
+                        + ", registries: " + invokers
+                        .stream()
+                        .map(invoker -> ((MockClusterInvoker<T>)invoker).getRegistryUrl().toString())
+                        .collect(Collectors.joining(",")));
             }
         }
 
-
+        // 如果既没有preferred，也没有指定的registry_zone，则正常通过负载均衡获取可用的invoker
+        // 注意，此处负载均衡比较的是各注册中心的权重
         // load balance among all registries, with registry weight count in.
         Invoker<T> balancedInvoker = select(loadBalanceAmongRegistries, invocation, invokers, null);
+
+        // 筛选出可用的invoker，进行调用即可
         if (balancedInvoker.isAvailable()) {
             return balancedInvoker.invoke(invocation);
         }
 
+        // 如果负载均衡也没筛选出可用的invoker，那么循环invokers集合，筛选第一个可用的invoker进行调用即可
         // If none of the invokers has a preferred signal or is picked by the loadbalancer, pick the first one available.
         for (Invoker<T> invoker : invokers) {
-            ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>) invoker;
+            ClusterInvoker<T> clusterInvoker = (ClusterInvoker<T>)invoker;
             if (clusterInvoker.isAvailable()) {
                 return clusterInvoker.invoke(invocation);
             }
         }
 
+        // 此处仅为兜底，使用第一个invoker进行调用
         //if none available,just pick one
         return invokers.get(0).invoke(invocation);
     }

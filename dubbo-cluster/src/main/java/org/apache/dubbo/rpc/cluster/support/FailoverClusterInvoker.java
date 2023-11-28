@@ -16,7 +16,9 @@
  */
 package org.apache.dubbo.rpc.cluster.support;
 
+import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.Version;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.NetUtils;
@@ -42,7 +44,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.RETRIES_KEY;
  * Note that retry causes latency.
  * <p>
  * <a href="http://en.wikipedia.org/wiki/Failover">Failover</a>
- *
+ * <p>
+ * 异常时按照配置的重试次数去重新发起请求
  */
 public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
@@ -65,7 +68,7 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
         // 获取要调用的方法名称
         String methodName = RpcUtils.getMethodName(invocation);
 
-        // 计算需要重试的次数
+        // 计算需要重试的次数，如果没有特殊配置，一般是3
         int len = calculateInvokeTimes(methodName);
 
         // 开始重试
@@ -85,8 +88,14 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
             // 非第一次循环的情况下，需要重新获取可用的invoker，避免某些invoker已经失效，然后选择到无用的invoker，这是为了提高调用的成功率
             if (i > 0) {
+
+                // 状态校验
                 checkWhetherDestroyed();
+
+                // 重新获取copyInvokers
                 copyInvokers = list(invocation);
+
+                // 校验copyInvokers的状态，为空会抛出异常
                 // check again
                 checkInvokers(copyInvokers, invocation);
             }
@@ -94,7 +103,7 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
             // 根据负载均衡获取一个可调用的invoker
             Invoker<T> invoker = select(loadbalance, invocation, copyInvokers, invoked);
 
-            // 添加到invoked集合中
+            // 添加到invoked集合中，当前集合会在select方法中用于标识已经被使用过的invoker
             invoked.add(invoker);
 
             // 在消费者上下文记录已经调用过的invoker集合
@@ -132,25 +141,30 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
                 le = e;
             } catch (Throwable e) {
 
-                // 非rpc异常，赋值给le
+                // 非rpc异常，包装并赋值给le
                 le = new RpcException(e.getMessage(), e);
             } finally {
+
+                // 记录本次调用的provider的地址，用于失败场景下，后续调用成功时的警告日志输出
                 providers.add(invoker.getUrl().getAddress());
             }
         }
-        throw new RpcException(le.getCode(), "Failed to invoke the method "
-                + methodName + " in the service " + getInterface().getName()
-                + ". Tried " + len + " times of the providers " + providers
-                + " (" + providers.size() + "/" + copyInvokers.size()
-                + ") from the registry " + directory.getUrl().getAddress()
-                + " on the consumer " + NetUtils.getLocalHost() + " using the dubbo version "
-                + Version.getVersion() + ". Last error is: "
+        throw new RpcException(le.getCode(),
+            "Failed to invoke the method " + methodName + " in the service " + getInterface().getName() + ". Tried "
+                + len + " times of the providers " + providers + " (" + providers.size() + "/" + copyInvokers.size()
+                + ") from the registry " + directory.getUrl().getAddress() + " on the consumer "
+                + NetUtils.getLocalHost() + " using the dubbo version " + Version.getVersion() + ". Last error is: "
                 + le.getMessage(), le.getCause() != null ? le.getCause() : le);
     }
 
+    /**
+     * 优先使用{@link RpcContext#getObjectAttachment(java.lang.String)}上的重试配置，如果没有或配置错误，则使用
+     * {@link URL#getMethodParameter(java.lang.String, java.lang.String, int)}上的配置，默认为
+     * {@link CommonConstants#DEFAULT_RETRIES}，不可小于{@code 1}
+     */
     private int calculateInvokeTimes(String methodName) {
 
-        // 从消费者url上获取配置的重试次数
+        // 从消费者url上获取配置的重试次数，默认为2次，加上实际的调用，有3次调用
         int len = getUrl().getMethodParameter(methodName, RETRIES_KEY, DEFAULT_RETRIES) + 1;
 
         // 获取消费上下文

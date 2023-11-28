@@ -24,14 +24,16 @@ import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.ZoneDetector;
 import org.apache.dubbo.rpc.cluster.support.AbstractClusterInvoker;
 
+import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_ZONE;
 import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_ZONE_FORCE;
-import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_KEY;
 
 /**
  * Determines the zone information of current request.
- *
+ * <p>
  * active only when url has key 'cluster=zone-aware'
+ * <p>
+ * 多注册中心的相关拦截逻辑，只有在url上有{@code cluster=zone-aware}才生效使用
  */
 @Activate(value = "cluster:zone-aware")
 public class ZoneAwareClusterInterceptor implements ClusterInterceptor {
@@ -41,15 +43,22 @@ public class ZoneAwareClusterInterceptor implements ClusterInterceptor {
     @Override
     public void before(AbstractClusterInvoker<?> clusterInvoker, Invocation invocation) {
         RpcContext rpcContext = RpcContext.getContext();
-        String zone = (String) rpcContext.getAttachment(REGISTRY_ZONE);
-        String force = (String) rpcContext.getAttachment(REGISTRY_ZONE_FORCE);
+
+        // 获取相关参数
+        String zone = (String)rpcContext.getAttachment(REGISTRY_ZONE);
+        String force = (String)rpcContext.getAttachment(REGISTRY_ZONE_FORCE);
+
+        // 获取SPI加载器
         ExtensionLoader<ZoneDetector> loader = ExtensionLoader.getExtensionLoader(ZoneDetector.class);
+
+        // 如果没有zone参数，且SPI有默认实现，则获取默认SPI实现，从当前invocation请求中获取zone和force参数
         if (StringUtils.isEmpty(zone) && loader.hasExtension(DEFAULT_KEY)) {
             ZoneDetector detector = loader.getExtension(DEFAULT_KEY);
             zone = detector.getZoneOfCurrentRequest(invocation);
             force = detector.isZoneForcingEnabled(invocation, zone);
         }
 
+        // 设置参数到请求中
         if (StringUtils.isNotEmpty(zone)) {
             invocation.setAttachment(REGISTRY_ZONE, zone);
         }
