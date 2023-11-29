@@ -179,6 +179,9 @@ public class DubboBootstrap {
 
     private volatile MetadataServiceExporter metadataServiceExporter;
 
+    /**
+     * 记录已导出的服务，key格式为：ServiceBean:{group}/{interface}:{version}
+     */
     private Map<String, ServiceConfigBase<?>> exportedServices = new ConcurrentHashMap<>();
 
     private List<Future<?>> asyncExportingFutures = new ArrayList<>();
@@ -875,16 +878,25 @@ public class DubboBootstrap {
      * Start the bootstrap
      */
     public DubboBootstrap start() {
+
+        // CAS操作，保证之启动一次
         if (started.compareAndSet(false, true)) {
+
+            // 状态更新，后续的QOS中会用到这些状态
             destroyed.set(false);
             ready.set(false);
+
+            // 初始化基础组件：配置中心、事件监听和元数据等
             initialize();
             if (logger.isInfoEnabled()) {
                 logger.info(NAME + " is starting...");
             }
+
+            // 对当前应用提供的服务，进行包装，并发布到注册中心上，也就是作为提供者的服务注册
             // 1. export Dubbo Services
             exportServices();
 
+            // 不是只注册提供者，或当前已有导出/export的服务，则进行元数据导出和服务实例注册（用于服务发现）
             // Not only provider register
             if (!isOnlyRegisterProvider() || hasExportedServices()) {
                 // 2. export MetadataService
@@ -893,7 +905,10 @@ public class DubboBootstrap {
                 registerServiceInstance();
             }
 
+            // 作为消费者的服务引用
             referServices();
+
+            // 如果有异步导出的任务，那么启动一个线程等待，并在任务完成后进行设置状态，并对相关监听器进行回调
             if (asyncExportingFutures.size() > 0) {
                 new Thread(() -> {
                     try {
@@ -905,15 +920,20 @@ public class DubboBootstrap {
                     if (logger.isInfoEnabled()) {
                         logger.info(NAME + " is ready.");
                     }
-                    ExtensionLoader<DubboBootstrapStartStopListener> exts = getExtensionLoader(DubboBootstrapStartStopListener.class);
+                    ExtensionLoader<DubboBootstrapStartStopListener> exts =
+                        getExtensionLoader(DubboBootstrapStartStopListener.class);
                     exts.getSupportedExtensionInstances().forEach(ext -> ext.onStart(this));
                 }).start();
-            } else {
+            }
+
+            // 没有异步导出的任务，也就是导出和引用，以及DubboBootstrap的其他初始化操作已经完成，那么需要设置状态，并对相关监听器进行回调
+            else {
                 ready.set(true);
                 if (logger.isInfoEnabled()) {
                     logger.info(NAME + " is ready.");
                 }
-                ExtensionLoader<DubboBootstrapStartStopListener> exts = getExtensionLoader(DubboBootstrapStartStopListener.class);
+                ExtensionLoader<DubboBootstrapStartStopListener> exts =
+                    getExtensionLoader(DubboBootstrapStartStopListener.class);
                 exts.getSupportedExtensionInstances().forEach(ext -> ext.onStart(this));
             }
             if (logger.isInfoEnabled()) {
@@ -1069,9 +1089,12 @@ public class DubboBootstrap {
     private void exportServices() {
         configManager.getServices().forEach(sc -> {
             // TODO, compatible with ServiceConfig.export()
-            ServiceConfig serviceConfig = (ServiceConfig) sc;
+            ServiceConfig serviceConfig = (ServiceConfig)sc;
+
+            // 关联DubboBootstrap
             serviceConfig.setBootstrap(this);
 
+            // 同步和异步导出
             if (exportAsync) {
                 ExecutorService executor = executorRepository.getServiceExporterExecutor();
                 Future<?> future = executor.submit(() -> {
@@ -1089,14 +1112,20 @@ public class DubboBootstrap {
     }
 
     private void exportService(ServiceConfig sc) {
+
+        // 校验对应serviceName是否已有导出，如果有就抛出异常
         if (exportedServices.containsKey(sc.getServiceName())) {
-            throw new IllegalStateException("There are multiple ServiceBean instances with the same service name: [" +
-                    sc.getServiceName() + "], instances: [" +
-                    exportedServices.get(sc.getServiceName()).toString() + ", " +
-                    sc.toString() + "]. Only one service can be exported for the same triple (group, interface, version), " +
-                    "please modify the group or version if you really need to export multiple services of the same interface.");
+            throw new IllegalStateException(
+                "There are multiple ServiceBean instances with the same service name: [" + sc.getServiceName()
+                    + "], instances: [" + exportedServices.get(sc.getServiceName()).toString() + ", " + sc.toString()
+                    + "]. Only one service can be exported for the same triple (group, interface, version), "
+                    + "please modify the group or version if you really need to export multiple services of the same interface.");
         }
+
+        // 执行导出
         sc.export();
+
+        // 记录当前已导出的服务
         exportedServices.put(sc.getServiceName(), sc);
     }
 

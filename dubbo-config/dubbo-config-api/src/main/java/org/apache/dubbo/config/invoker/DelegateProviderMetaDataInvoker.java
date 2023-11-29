@@ -20,12 +20,14 @@ import org.apache.dubbo.common.URL;
 import org.apache.dubbo.config.ServiceConfig;
 import org.apache.dubbo.rpc.Invocation;
 import org.apache.dubbo.rpc.Invoker;
+import org.apache.dubbo.rpc.ProxyFactory;
 import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
 
 /**
- *
  * A Invoker wrapper that wrap the invoker and all the metadata (ServiceConfig)
+ * <p>
+ * 用来包装实际对外提供服务的{@link ProxyFactory#getInvoker(java.lang.Object, java.lang.Class, org.apache.dubbo.common.URL) invoker}，和对应的服务元数据
  */
 public class DelegateProviderMetaDataInvoker<T> implements Invoker {
     protected final Invoker<T> invoker;

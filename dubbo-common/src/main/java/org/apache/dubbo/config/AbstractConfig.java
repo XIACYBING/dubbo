@@ -117,6 +117,11 @@ public abstract class AbstractConfig implements Serializable {
         appendParameters(parameters, config, null);
     }
 
+    /**
+     * 执行{@code config}中的{@code getter}方法，和{@code getParameter}方法，将提取出的值放入{@code parameters}集合中
+     * <p>
+     * 在{@code prefix}存储的时候，在属性key上拼接前缀
+     */
     @SuppressWarnings("unchecked")
     public static void appendParameters(Map<String, String> parameters, Object config, String prefix) {
         if (config == null) {
@@ -126,38 +131,65 @@ public abstract class AbstractConfig implements Serializable {
         for (Method method : methods) {
             try {
                 String name = method.getName();
+
+                // getter方法的处理
                 if (MethodUtils.isGetter(method)) {
+
+                    // 方法返回类型不能是Object
+                    // 获取@Parameter注解，如果有，判断当前方法是否被exclude
                     Parameter parameter = method.getAnnotation(Parameter.class);
                     if (method.getReturnType() == Object.class || parameter != null && parameter.excluded()) {
                         continue;
                     }
+
+                    // 获取属性名称
                     String key;
                     if (parameter != null && parameter.key().length() > 0) {
                         key = parameter.key();
                     } else {
                         key = calculatePropertyFromGetter(name);
                     }
+
+                    // 获取方法返回值
                     Object value = method.invoke(config);
+
+                    // 转换为字符串，trim空格
                     String str = String.valueOf(value).trim();
+
+                    // 属性值不为空，
                     if (value != null && str.length() > 0) {
+
+                        // 对属性值进行编码
                         if (parameter != null && parameter.escaped()) {
                             str = URL.encode(str);
                         }
+
+                        // 通过@Parameter注解配置为拼接：如果对应key原来已经有值，那么就把值用英文逗号拼接在一起
                         if (parameter != null && parameter.append()) {
                             String pre = parameters.get(key);
                             if (pre != null && pre.length() > 0) {
                                 str = pre + "," + str;
                             }
                         }
+
+                        // 拼接前缀
                         if (prefix != null && prefix.length() > 0) {
                             key = prefix + "." + key;
                         }
+
+                        // 放入集合中
                         parameters.put(key, str);
-                    } else if (parameter != null && parameter.required()) {
+                    }
+
+                    // value是null，或者trim之后是空字符串，但是parameter注解需要该属性，抛出异常处理
+                    else if (parameter != null && parameter.required()) {
                         throw new IllegalStateException(config.getClass().getSimpleName() + "." + key + " == null");
                     }
-                } else if (isParametersGetter(method)) {
-                    Map<String, String> map = (Map<String, String>) method.invoke(config, new Object[0]);
+                }
+
+                // 是不是特定的getParameters方法，如果是，则获取返回的Map，处理Map中的前缀和横杠，加入parameters中
+                else if (isParametersGetter(method)) {
+                    Map<String, String> map = (Map<String, String>)method.invoke(config, new Object[0]);
                     parameters.putAll(convert(map, prefix));
                 }
             } catch (Exception e) {
@@ -325,6 +357,11 @@ public abstract class AbstractConfig implements Serializable {
     }
 
     /**
+     * <ol>
+     *     <li>如果{@code prefix}存在，那么就拼接到{@code parameters}的所有key上</li>
+     *     <li>如果{@code parameters}的key上存在{@code -}，替换成{@code </li>
+     * </ol>
+     *
      * @param parameters the raw parameters
      * @param prefix     the prefix
      * @return the parameters whose raw key will replace "-" to "."

@@ -122,15 +122,13 @@ import static org.apache.dubbo.rpc.cluster.Constants.WEIGHT_KEY;
  * TODO, replace RegistryProtocol completely in the future.
  */
 public class RegistryProtocol implements Protocol {
-    public static final String[] DEFAULT_REGISTER_PROVIDER_KEYS = {
-            APPLICATION_KEY, CODEC_KEY, EXCHANGER_KEY, SERIALIZATION_KEY, CLUSTER_KEY, CONNECTIONS_KEY, DEPRECATED_KEY,
-            GROUP_KEY, LOADBALANCE_KEY, MOCK_KEY, PATH_KEY, TIMEOUT_KEY, TOKEN_KEY, VERSION_KEY, WARMUP_KEY,
-            WEIGHT_KEY, TIMESTAMP_KEY, DUBBO_VERSION_KEY, RELEASE_KEY
-    };
+    public static final String[] DEFAULT_REGISTER_PROVIDER_KEYS =
+        {APPLICATION_KEY, CODEC_KEY, EXCHANGER_KEY, SERIALIZATION_KEY, CLUSTER_KEY, CONNECTIONS_KEY, DEPRECATED_KEY,
+            GROUP_KEY, LOADBALANCE_KEY, MOCK_KEY, PATH_KEY, TIMEOUT_KEY, TOKEN_KEY, VERSION_KEY, WARMUP_KEY, WEIGHT_KEY,
+            TIMESTAMP_KEY, DUBBO_VERSION_KEY, RELEASE_KEY};
 
-    public static final String[] DEFAULT_REGISTER_CONSUMER_KEYS = {
-            APPLICATION_KEY, VERSION_KEY, GROUP_KEY, DUBBO_VERSION_KEY, RELEASE_KEY
-    };
+    public static final String[] DEFAULT_REGISTER_CONSUMER_KEYS =
+        {APPLICATION_KEY, VERSION_KEY, GROUP_KEY, DUBBO_VERSION_KEY, RELEASE_KEY};
 
     private static final String REGISTRY_PROTOCOL_LISTENER_KEY = "registry.protocol.listener";
     private static final int DEFAULT_PORT = 9090;
@@ -139,8 +137,11 @@ public class RegistryProtocol implements Protocol {
     private final Map<URL, NotifyListener> overrideListeners = new ConcurrentHashMap<>();
     private final Map<String, ServiceConfigurationListener> serviceConfigurationListeners = new ConcurrentHashMap<>();
     private final ProviderConfigurationListener providerConfigurationListener = new ProviderConfigurationListener();
-    // To solve the problem of RMI repeated exposure port conflicts, the services that have been exposed are no longer exposed.
-    // providerurl <--> exporter
+
+    /**
+     * To solve the problem of RMI repeated exposure port conflicts, the services that have been exposed are no longer exposed.
+     * providerurl <--> exporter
+     */
     private final ConcurrentMap<String, ExporterChangeableWrapper<?>> bounds = new ConcurrentHashMap<>();
     protected Protocol protocol;
     protected RegistryFactory registryFactory;
@@ -148,8 +149,8 @@ public class RegistryProtocol implements Protocol {
 
     private ConcurrentMap<URL, ReExportTask> reExportFailedTasks = new ConcurrentHashMap<>();
     private HashedWheelTimer retryTimer =
-            new HashedWheelTimer(new NamedThreadFactory("DubboReexportTimer", true), DEFAULT_REGISTRY_RETRY_PERIOD, TimeUnit.MILLISECONDS,
-                    128);
+        new HashedWheelTimer(new NamedThreadFactory("DubboReexportTimer", true), DEFAULT_REGISTRY_RETRY_PERIOD,
+            TimeUnit.MILLISECONDS, 128);
 
     // get the parameters which shouldn't been displayed in url string(Starting with .)
     private static String[] getHiddenKeys(URL url) {
@@ -194,10 +195,17 @@ public class RegistryProtocol implements Protocol {
 
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+
+        // 获取registry协议的url
+        // 如果是子类InterfaceCompatibleRegistryProtocol，那么此处的协议是被修改后的具体协议，比如zookeeper，而不是代表注册中心的registry协议
         URL registryUrl = getRegistryUrl(originInvoker);
+
+        // 获取registry协议的url上记录的，实际服务提供者的url
         // url to export locally
         URL providerUrl = getProviderUrl(originInvoker);
 
+        // 监听重写的数据
+        // 主要是基于providerUrl，添加category=configurator参数，构建相应的监听器，监听注册中心中，对当前providerUrl的配置重写动作
         // Subscribe the override data
         // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
         //  the same service. Because the subscribed is cached key with the name of the service, it causes the
@@ -206,31 +214,42 @@ public class RegistryProtocol implements Protocol {
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
 
+        // 监听器初始化，这时候需要先检测一次注册中心对当前providerUrl的Override配置，覆盖重写某些参数
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
+
+        // 对实际的providerUrl进行export操作，生成实际执行任务的invoker
         // export invoker
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
+        // 获取对应的注册中心
         // url to registry
         final Registry registry = getRegistry(originInvoker);
+
+        // 获取可以被注册到注册中心的providerUrl，主要是删除多余的参数
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
 
+        // 注册提供者到注册中心上
         // decide if we need to delay publish
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
             registry.register(registeredProviderUrl);
         }
 
+        // 记录provider的相关信息到ProviderModel上
         // register stated url on provider model
         registerStatedUrl(registryUrl, registeredProviderUrl, register);
 
-
+        // 设置注册和订阅信息
         exporter.setRegisterUrl(registeredProviderUrl);
         exporter.setSubscribeUrl(overrideSubscribeUrl);
 
+        // 向注册中心订阅override数据，主要是用来监听当前服务的configurator节点
         // Deprecated! Subscribe to override rules in 2.6.x or before.
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
+        // 通知export操作完成
         notifyExport(exporter);
+
         //Ensure that a new exporter instance is returned every time export
         return new DestroyableExporter<>(exporter);
     }
@@ -254,11 +273,14 @@ public class RegistryProtocol implements Protocol {
 
     @SuppressWarnings("unchecked")
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
+
+        // 获取到revistryUrl上记录的providerUrl，移除dynamic和enabled参数，输出为完整字符串作为key
         String key = getCacheKey(originInvoker);
 
-        return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
+        // 使用protocol适配器，对provider进行实际的导出/export操作
+        return (ExporterChangeableWrapper<T>)bounds.computeIfAbsent(key, s -> {
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
-            return new ExporterChangeableWrapper<>((Exporter<T>) protocol.export(invokerDelegate), originInvoker);
+            return new ExporterChangeableWrapper<>((Exporter<T>)protocol.export(invokerDelegate), originInvoker);
         });
     }
 
@@ -370,6 +392,10 @@ public class RegistryProtocol implements Protocol {
         }
     }
 
+    /**
+     * 子类{@link InterfaceCompatibleRegistryProtocol}重写了当前方法，如果是{@code registry}协议，则会使用url上记录的{@code registry}参数替换
+     * {@link URL#getProtocol()}
+     */
     protected URL getRegistryUrl(Invoker<?> originInvoker) {
         return originInvoker.getUrl();
     }
@@ -445,14 +471,14 @@ public class RegistryProtocol implements Protocol {
 
     /**
      * Get the key cached in bounds by invoker
-     *
-     * @param originInvoker
-     * @return
      */
     private String getCacheKey(final Invoker<?> originInvoker) {
+
+        // 获取provider的url
         URL providerUrl = getProviderUrl(originInvoker);
-        String key = providerUrl.removeParameters("dynamic", "enabled").toFullString();
-        return key;
+
+        // 移除dynamic和enabled参数，生成完整字符串
+        return providerUrl.removeParameters("dynamic", "enabled").toFullString();
     }
 
     @Override

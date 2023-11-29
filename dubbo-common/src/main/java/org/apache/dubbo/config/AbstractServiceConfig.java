@@ -90,6 +90,8 @@ public abstract class AbstractServiceConfig extends AbstractInterfaceConfig {
     /**
      * The protocol list the service will export with
      * Also see {@link #protocolIds}, only one of them will work.
+     * <p>
+     * 当前服务将以哪几种协议对外暴露，一般是{@code dubbo}，也可以是其他的{@code http}
      */
     protected List<ProtocolConfig> protocols;
 

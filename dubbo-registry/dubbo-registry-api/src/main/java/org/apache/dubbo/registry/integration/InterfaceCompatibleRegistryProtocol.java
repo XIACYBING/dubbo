@@ -42,8 +42,14 @@ public class InterfaceCompatibleRegistryProtocol extends RegistryProtocol {
     @Override
     protected URL getRegistryUrl(Invoker<?> originInvoker) {
         URL registryUrl = originInvoker.getUrl();
+
+        // 如果是registry协议，则需要替换协议头
         if (REGISTRY_PROTOCOL.equals(registryUrl.getProtocol())) {
+
+            // 获取url上记录的registry参数，代表当前服务要导出的协议类型，默认是dubbo
             String protocol = registryUrl.getParameter(REGISTRY_KEY, DEFAULT_REGISTRY);
+
+            // 重置协议头
             registryUrl = registryUrl.setProtocol(protocol).removeParameter(REGISTRY_KEY);
         }
         return registryUrl;

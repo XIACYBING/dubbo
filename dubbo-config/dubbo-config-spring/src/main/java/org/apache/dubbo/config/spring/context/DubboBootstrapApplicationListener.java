@@ -16,10 +16,9 @@
  */
 package org.apache.dubbo.config.spring.context;
 
+import com.alibaba.spring.context.OnceApplicationContextEventListener;
 import org.apache.dubbo.config.DubboShutdownHook;
 import org.apache.dubbo.config.bootstrap.DubboBootstrap;
-
-import com.alibaba.spring.context.OnceApplicationContextEventListener;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ApplicationContextEvent;
@@ -30,6 +29,8 @@ import org.springframework.core.Ordered;
 /**
  * The {@link ApplicationListener} for {@link DubboBootstrap}'s lifecycle when the {@link ContextRefreshedEvent}
  * and {@link ContextClosedEvent} raised
+ * <p>
+ * 监听Spring容器启动和关闭事件，对{@link DubboBootstrap}的生命周期进行管理
  *
  * @since 2.7.5
  */
@@ -50,7 +51,11 @@ public class DubboBootstrapApplicationListener extends OnceApplicationContextEve
 
     public DubboBootstrapApplicationListener(ApplicationContext applicationContext) {
         super(applicationContext);
+
+        // 初始化DubboBootstrap
         this.dubboBootstrap = DubboBootstrap.getInstance();
+
+        // 记录Spring应用上下文
         DubboBootstrapStartStopListenerSpringAdapter.applicationContext = applicationContext;
     }
 
@@ -59,10 +64,15 @@ public class DubboBootstrapApplicationListener extends OnceApplicationContextEve
         if (DubboBootstrapStartStopListenerSpringAdapter.applicationContext == null) {
             DubboBootstrapStartStopListenerSpringAdapter.applicationContext = event.getApplicationContext();
         }
+
+        // 启动DubboBootstrap
         if (event instanceof ContextRefreshedEvent) {
-            onContextRefreshedEvent((ContextRefreshedEvent) event);
-        } else if (event instanceof ContextClosedEvent) {
-            onContextClosedEvent((ContextClosedEvent) event);
+            onContextRefreshedEvent((ContextRefreshedEvent)event);
+        }
+
+        // 执行Dubbo关闭的钩子
+        else if (event instanceof ContextClosedEvent) {
+            onContextClosedEvent((ContextClosedEvent)event);
         }
     }
 

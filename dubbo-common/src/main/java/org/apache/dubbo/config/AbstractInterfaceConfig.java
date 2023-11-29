@@ -138,6 +138,10 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
     /**
      * The method configuration
+     * <p>
+     * 方法配置，来源于配置Dubbo服务时，手动指定的方法级别配置
+     *
+     * @see org.apache.dubbo.config.annotation.Method
      */
     private List<MethodConfig> methods;
 
@@ -198,12 +202,16 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
         for (RegistryConfig registryConfig : registries) {
             if (!registryConfig.isValid()) {
-                throw new IllegalStateException("No registry config found or it's not a valid config! " +
-                        "The registry config is: " + registryConfig);
+                throw new IllegalStateException(
+                    "No registry config found or it's not a valid config! " + "The registry config is: "
+                        + registryConfig);
             }
         }
     }
 
+    /**
+     * 添加运行时参数
+     */
     public static void appendRuntimeParameters(Map<String, String> map) {
         map.put(DUBBO_VERSION_KEY, Version.getProtocolVersion());
         map.put(RELEASE_KEY, Version.getVersion());

@@ -24,9 +24,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
+ * @see org.apache.dubbo.config.MethodConfig
  * @since 2.6.5
- *  *
- *  * 2018/9/29
+ * @since 2018/9/29
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

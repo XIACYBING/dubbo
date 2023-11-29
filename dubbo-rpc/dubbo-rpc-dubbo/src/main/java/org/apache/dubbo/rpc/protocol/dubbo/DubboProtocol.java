@@ -326,7 +326,7 @@ public class DubboProtocol extends AbstractProtocol {
         // 添加映射到exporterMap的映射集合中
         exporterMap.addExportMap(key, exporter);
 
-        // 对stub和callback的判断，纸打印日志，暂时没有任何操作 todo 这是干啥的？
+        // 对stub和callback的判断，只打印日志，暂时没有任何操作 todo 这是干啥的？
         //export an stub service for dispatching event
         Boolean isStubSupportEvent = url.getParameter(STUB_EVENT_KEY, DEFAULT_STUB_EVENT);
         Boolean isCallbackservice = url.getParameter(IS_CALLBACK_SERVICE, false);
