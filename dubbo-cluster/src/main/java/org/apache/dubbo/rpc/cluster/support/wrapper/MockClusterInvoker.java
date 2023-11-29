@@ -29,6 +29,7 @@ import org.apache.dubbo.rpc.RpcException;
 import org.apache.dubbo.rpc.RpcInvocation;
 import org.apache.dubbo.rpc.cluster.ClusterInvoker;
 import org.apache.dubbo.rpc.cluster.Directory;
+import org.apache.dubbo.rpc.cluster.router.mock.MockInvokersSelector;
 import org.apache.dubbo.rpc.support.MockInvoker;
 
 import java.util.List;
@@ -36,6 +37,9 @@ import java.util.List;
 import static org.apache.dubbo.rpc.Constants.MOCK_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.INVOCATION_NEED_MOCK;
 
+/**
+ * MockClusterInvoker
+ */
 public class MockClusterInvoker<T> implements ClusterInvoker<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(MockClusterInvoker.class);
@@ -54,6 +58,7 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
         return directory.getConsumerUrl();
     }
 
+    @Override
     public URL getRegistryUrl() {
         return directory.getUrl();
     }
@@ -90,7 +95,7 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
         // 从消费者url上获取mock参数的值，默认值为false
         String value = getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
 
-        // 没有mock，直接通过invoker调用服务提供者
+        // 未配置或为false，不开启mock机制，直接通过invoker调用服务提供者
         if (value.length() == 0 || "false".equalsIgnoreCase(value)) {
             //no mock
 
@@ -98,23 +103,29 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
             // MockCluster -> 拦截器拦截链路 -> 集群失败重试FailoverClusterInvoker -> 过滤器过滤链路（FilterNode.invoke）
             // -> 监听器监听（ListenerInvokerWrapper，目前只有几个内置监听器） -> 协议调用（DubboInvoker/GrpcInvoker...） -> 数据传输
             result = this.invoker.invoke(invocation);
-        } else if (value.startsWith("force")) {
+        }
+
+        // 强制走Mock机制
+        else if (value.startsWith("force")) {
             if (logger.isWarnEnabled()) {
                 logger.warn("force-mock: " + invocation.getMethodName() + " force-mock enabled , url : " + getUrl());
             }
-            //force:direct mock
+
+            // force:direct mock
             result = doMockInvoke(invocation, null);
-        } else {
-            //fail-mock
+        }
+
+        // 其他情况则视为fail-mock，也就是先正常调用，失败后再进行mock
+        else {
             try {
                 result = this.invoker.invoke(invocation);
 
                 //fix:#4585
-                if(result.getException() != null && result.getException() instanceof RpcException){
-                    RpcException rpcException= (RpcException)result.getException();
-                    if(rpcException.isBiz()){
-                        throw  rpcException;
-                    }else {
+                if (result.getException() != null && result.getException() instanceof RpcException) {
+                    RpcException rpcException = (RpcException)result.getException();
+                    if (rpcException.isBiz()) {
+                        throw rpcException;
+                    } else {
                         result = doMockInvoke(invocation, rpcException);
                     }
                 }
@@ -125,7 +136,8 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
                 }
 
                 if (logger.isWarnEnabled()) {
-                    logger.warn("fail-mock: " + invocation.getMethodName() + " fail-mock enabled , url : " + getUrl(), e);
+                    logger.warn("fail-mock: " + invocation.getMethodName() + " fail-mock enabled , url : " + getUrl(),
+                        e);
                 }
                 result = doMockInvoke(invocation, e);
             }
@@ -133,17 +145,26 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
         return result;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    /**
+     * 调用mock协议的invoker
+     */
+    @SuppressWarnings( {"unchecked", "rawtypes"})
     private Result doMockInvoke(Invocation invocation, RpcException e) {
         Result result = null;
         Invoker<T> minvoker;
 
+        // 筛选出所有mock协议的invoker
         List<Invoker<T>> mockInvokers = selectMockInvoker(invocation);
+
+        // 如果为空，则自己初始化一个mock协议的invoker，以便接下来使用
+        // 不为空则将筛选结果的第一个作为接下来要使用的invoker
         if (CollectionUtils.isEmpty(mockInvokers)) {
-            minvoker = (Invoker<T>) new MockInvoker(getUrl(), directory.getInterface());
+            minvoker = (Invoker<T>)new MockInvoker(getUrl(), directory.getInterface());
         } else {
             minvoker = mockInvokers.get(0);
         }
+
+        // 进行mock调用
         try {
             result = minvoker.invoke(invocation);
         } catch (RpcException me) {
@@ -171,24 +192,31 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
      * Contract：
      * directory.list() will return a list of normal invokers if Constants.INVOCATION_NEED_MOCK is absent or not true in invocation, otherwise, a list of mock invokers will return.
      * if directory.list() returns more than one mock invoker, only one of them will be used.
+     * <p>
+     * 筛选出所有mock协议的invoker
      *
-     * @param invocation
-     * @return
+     * @see MockInvokersSelector#route(List, URL, Invocation)
      */
     private List<Invoker<T>> selectMockInvoker(Invocation invocation) {
         List<Invoker<T>> invokers = null;
+
+        // 判断是否正常的调用请求
         //TODO generic invoker？
         if (invocation instanceof RpcInvocation) {
+
+            // 附加需要mock的参数
             //Note the implicit contract (although the description is added to the interface declaration, but extensibility is a problem. The practice placed in the attachment needs to be improved)
-            ((RpcInvocation) invocation).setAttachment(INVOCATION_NEED_MOCK, Boolean.TRUE.toString());
+            ((RpcInvocation)invocation).setAttachment(INVOCATION_NEED_MOCK, Boolean.TRUE.toString());
+
+            // 筛选mock协议的invoker
             //directory will return a list of normal invokers if Constants.INVOCATION_NEED_MOCK is absent or not true in invocation, otherwise, a list of mock invokers will return.
             try {
                 invokers = directory.list(invocation);
             } catch (RpcException e) {
                 if (logger.isInfoEnabled()) {
                     logger.info("Exception when try to invoke mock. Get mock invokers error for service:"
-                            + getUrl().getServiceInterface() + ", method:" + invocation.getMethodName()
-                            + ", will construct a new mock with 'new MockInvoker()'.", e);
+                        + getUrl().getServiceInterface() + ", method:" + invocation.getMethodName()
+                        + ", will construct a new mock with 'new MockInvoker()'.", e);
                 }
             }
         }

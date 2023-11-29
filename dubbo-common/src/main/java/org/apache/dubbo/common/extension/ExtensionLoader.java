@@ -827,8 +827,10 @@ public class ExtensionLoader<T> {
             injectExtension(instance);
 
             // 如果需要包装拓展类实例，则进行包装
+            // 会使用当前缓存的所有wrapper类对象进行判断，符合要求的则会生成一个wrapper类，并将当前要构建的类实例传入其中，包装起来，如果有多个包装类，最终会一层一层的包装起来，类似AOP
             if (wrap) {
 
+                // 获取当前SPI的所有的包装类并进行排序，后面会根据@Wrapper注解判断是否要使用对应的Wrapper类对当前类实例进行包装
                 List<Class<?>> wrapperClassesList = new ArrayList<>();
                 if (cachedWrapperClasses != null) {
                     wrapperClassesList.addAll(cachedWrapperClasses);
@@ -840,8 +842,12 @@ public class ExtensionLoader<T> {
                 if (CollectionUtils.isNotEmpty(wrapperClassesList)) {
                     for (Class<?> wrapperClass : wrapperClassesList) {
                         Wrapper wrapper = wrapperClass.getAnnotation(Wrapper.class);
+
+                        // 没有wrapper注解 || 有wrapper注解，且当前要创建的SPI拓展符合wrapper注解上的条件，则使用对当前要创建的SPI拓展进行包装
                         if (wrapper == null || (ArrayUtils.contains(wrapper.matches(), name) && !ArrayUtils.contains(
                             wrapper.mismatches(), name))) {
+
+                            // 对类实例进行包装，并将包装结果重新赋值给instance，这样后面的wrapper类进行包装的时候，使用的就是已经包装过的instance，效果类似Spring的AOP
                             instance = injectExtension((T)wrapperClass.getConstructor(type).newInstance(instance));
                         }
                     }

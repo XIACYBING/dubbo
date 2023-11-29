@@ -1011,6 +1011,17 @@ public final class ReflectUtils {
         return getEmptyObject(returnType, new HashMap<>(), 0);
     }
 
+    /**
+     * 获取空对象
+     * <ol>
+     *     <li>类对象为空则直接返回空</li>
+     *     <li>基础数据类型返回对应默认值</li>
+     *     <li>数组和集合返回对应的空数组和空集合</li>
+     *     <li>字符串则返回空字符串</li>
+     *     <li>接口类型则直接返回null</li>
+     *     <li>其他类型则尝试使用公开无参构造器进行实例化，并对公开字段进行数据填充</li>
+     * </ol>
+     */
     private static Object getEmptyObject(Class<?> returnType, Map<Class<?>, Object> emptyInstances, int level) {
         if (level > 2) {
             return null;
@@ -1062,12 +1073,18 @@ public final class ReflectUtils {
         }
 
         try {
+
+            // 从外部传入的集合中获取对应对象
             Object value = emptyInstances.get(returnType);
+
+            // 如果没有，则通过类对象获取无参公开构造器，进行实例化，并放入外部传入的集合中
             if (value == null) {
                 value = returnType.getDeclaredConstructor().newInstance();
                 emptyInstances.put(returnType, value);
             }
             Class<?> cls = value.getClass();
+
+            // 对对象进行公开字段的数据填充
             while (cls != null && cls != Object.class) {
                 Field[] fields = cls.getDeclaredFields();
                 for (Field field : fields) {

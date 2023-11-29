@@ -23,13 +23,15 @@ import org.apache.dubbo.rpc.cluster.Directory;
 
 /**
  * mock impl
- *
+ * <p>
+ * MockCluster的包装
  */
 public class MockClusterWrapper implements Cluster {
 
     private Cluster cluster;
 
     public MockClusterWrapper(Cluster cluster) {
+        // todo 这里是如何决定是哪个cluster的？为啥这个Wrapper没有@Wrapper注解
         this.cluster = cluster;
     }
 
