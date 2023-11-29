@@ -18,6 +18,17 @@ package org.apache.dubbo.rpc.cluster;
 
 import org.apache.dubbo.common.extension.SPI;
 
+/**
+ * 调用返回结果合并器，目前只提供一些集合数据类型的合并器，比如{@link org.apache.dubbo.rpc.cluster.merger.ArrayMerger 数组}、
+ * {@link org.apache.dubbo.rpc.cluster.merger.MapMerger Map}、{@link org.apache.dubbo.rpc.cluster.merger.SetMerger Set
+ * }和{@link org.apache.dubbo.rpc.cluster.merger.ListMerger List}
+ * <p>
+ * 针对数组类型，有提供八种基础数据类型数组的合并器
+ *
+ * @param <T> 要合并的数据类型
+ * @see org.apache.dubbo.rpc.cluster.merger.MergerFactory
+ * @see org.apache.dubbo.rpc.cluster.support.MergeableClusterInvoker
+ */
 @SPI
 public interface Merger<T> {
 
