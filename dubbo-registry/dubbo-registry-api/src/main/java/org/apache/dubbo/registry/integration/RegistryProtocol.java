@@ -484,28 +484,48 @@ public class RegistryProtocol implements Protocol {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
+
+        // 获取注册中心url
         url = getRegistryUrl(url);
+
+        // 通过SPI机制获取注册中心实例
         Registry registry = getRegistry(url);
+
+        // 如果当前要引用的是一个注册中心服务，则无需后续逻辑，直接使用代理工程生成对应的invoker
         if (RegistryService.class.equals(type)) {
-            return proxyFactory.getInvoker((T) registry, type, url);
+            return proxyFactory.getInvoker((T)registry, type, url);
         }
 
+        // 获取引用相关的参数
         // group="a,b" or group="*"
         Map<String, String> qs = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
+
+        // 获取要引用的group，可以不指定/指定多个，或直接指定*
         String group = qs.get(GROUP_KEY);
+
+        // 有指定group，则使用MergeableCluster进行后续的集群合并动作
         if (group != null && group.length() > 0) {
             if ((COMMA_SPLIT_PATTERN.split(group)).length > 1 || "*".equals(group)) {
                 return doRefer(Cluster.getCluster(MergeableCluster.NAME), registry, type, url, qs);
             }
         }
 
+        // 否则前面获取到的引用参数中获取集群配置，通过SPI机制获取到对应的集群
         Cluster cluster = Cluster.getCluster(qs.get(CLUSTER_KEY));
+
+        // 执行具体的引用逻辑
         return doRefer(cluster, registry, type, url, qs);
     }
 
     protected <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url, Map<String, String> parameters) {
+
+        // 生成消费者url，协议是consumer，参数来源于当前链路中注册中心url上的引用参数
         URL consumerUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
+
+        // 包装当前registryProtocol、cluster、registry、interfaceType、registryUrl和consumerUrl
         ClusterInvoker<T> migrationInvoker = getMigrationInvoker(this, cluster, registry, type, url, consumerUrl);
+
+        // 拦截invoker引用
         return interceptInvoker(migrationInvoker, url, consumerUrl);
     }
 
@@ -515,14 +535,21 @@ public class RegistryProtocol implements Protocol {
     }
 
     protected <T> Invoker<T> interceptInvoker(ClusterInvoker<T> invoker, URL url, URL consumerUrl) {
+
+        // 获取url上指定的，当前激活的注册中心协议相关的监听器
         List<RegistryProtocolListener> listeners = findRegistryProtocolListeners(url);
+
+        // 为空不处理
         if (CollectionUtils.isEmpty(listeners)) {
             return invoker;
         }
 
+        // 否则循环监听器，发送引用事件
         for (RegistryProtocolListener listener : listeners) {
             listener.onRefer(this, invoker, consumerUrl);
         }
+
+        // 返回invoker
         return invoker;
     }
 
@@ -538,38 +565,60 @@ public class RegistryProtocol implements Protocol {
     }
 
     protected <T> ClusterInvoker<T> doCreateInvoker(DynamicDirectory<T> directory, Cluster cluster, Registry registry, Class<T> type) {
+
+        // 设置注册中心和protocol
         directory.setRegistry(registry);
         directory.setProtocol(protocol);
         // all attributes of REFER_KEY
         Map<String, String> parameters = new HashMap<String, String>(directory.getConsumerUrl().getParameters());
-        URL urlToRegistry = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
+
+        // 生成consumer协议的url
+        URL urlToRegistry =
+            new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
+
+        // 当前directory应该执行注册
         if (directory.isShouldRegister()) {
+
+            // 为url添加category=consumers和check=false的参数
             directory.setRegisteredConsumerUrl(urlToRegistry);
+
+            // 执行注册：在zk中就是添加对应的consumer节点
             registry.register(directory.getRegisteredConsumerUrl());
         }
+
+        // 构建路由链路
         directory.buildRouterChain(urlToRegistry);
+
+        // 订阅providers、configurators和routers的变化
         directory.subscribe(toSubscribeUrl(urlToRegistry));
 
-        return (ClusterInvoker<T>) cluster.join(directory);
+        // 包装directory，返回集群invoker
+        return (ClusterInvoker<T>)cluster.join(directory);
     }
 
     public <T> void reRefer(ClusterInvoker<?> invoker, URL newSubscribeUrl) {
         if (!(invoker instanceof MigrationClusterInvoker)) {
-            LOGGER.error("Only invoker type of MigrationClusterInvoker supports reRefer, current invoker is " + invoker.getClass());
+            LOGGER.error("Only invoker type of MigrationClusterInvoker supports reRefer, current invoker is "
+                + invoker.getClass());
             return;
         }
 
-        MigrationClusterInvoker<?> migrationClusterInvoker = (MigrationClusterInvoker<?>) invoker;
+        MigrationClusterInvoker<?> migrationClusterInvoker = (MigrationClusterInvoker<?>)invoker;
         migrationClusterInvoker.reRefer(newSubscribeUrl);
     }
 
+    /**
+     * 为url增加category参数：providers、configurators和routers
+     */
     public static URL toSubscribeUrl(URL url) {
-        return url.addParameter(CATEGORY_KEY, PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY);
+        return url.addParameter(CATEGORY_KEY,
+            PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY);
     }
 
     protected List<RegistryProtocolListener> findRegistryProtocolListeners(URL url) {
-        return ExtensionLoader.getExtensionLoader(RegistryProtocolListener.class)
-                .getActivateExtension(url, REGISTRY_PROTOCOL_LISTENER_KEY);
+        return ExtensionLoader
+            .getExtensionLoader(RegistryProtocolListener.class)
+            .getActivateExtension(url, REGISTRY_PROTOCOL_LISTENER_KEY);
     }
 
     // available to test

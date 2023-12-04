@@ -17,6 +17,7 @@
 package org.apache.dubbo.config;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.utils.ClassUtils;
 import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
@@ -54,6 +55,10 @@ public abstract class ReferenceConfigBase<T> extends AbstractReferenceConfig {
 
     /**
      * The url for peer-to-peer invocation
+     * <p>
+     * 指定的提供者地址和指定的注册中心地址，如果有多个，用{@code ;}做分割，在创建代理stub的时候会使用{@link CommonConstants#SEMICOLON_SPLIT_PATTERN}做切割
+     *
+     * @see #urls
      */
     protected String url;
 

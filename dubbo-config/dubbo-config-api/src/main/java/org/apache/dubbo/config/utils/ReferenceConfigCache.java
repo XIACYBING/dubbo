@@ -45,26 +45,46 @@ public class ReferenceConfigCache {
      * Create the key with the <b>Group</b>, <b>Interface</b> and <b>version</b> attribute of {@link ReferenceConfigBase}.
      * <p>
      * key example: <code>group1/org.apache.dubbo.foo.FooService:1.0.0</code>.
+     * <p>
+     * {group}/{interfaceName}:{version}
      */
     public static final KeyGenerator DEFAULT_KEY_GENERATOR = referenceConfig -> {
+
+        // 获取接口名称
         String iName = referenceConfig.getInterface();
+
+        // 没有的话就从相关类对象上获取
         if (StringUtils.isBlank(iName)) {
             Class<?> clazz = referenceConfig.getInterfaceClass();
             iName = clazz.getName();
         }
+
+        // 还没有则抛出异常，不过一般不会
         if (StringUtils.isBlank(iName)) {
             throw new IllegalArgumentException("No interface info in ReferenceConfig" + referenceConfig);
         }
 
+        // 按照格式生成key：{group}/{interfaceName}:{version}
         return buildServiceKey(iName, referenceConfig.getGroup(), referenceConfig.getVersion());
     };
 
-    static final ConcurrentMap<String, ReferenceConfigCache> CACHE_HOLDER = new ConcurrentHashMap<String, ReferenceConfigCache>();
+    static final ConcurrentMap<String, ReferenceConfigCache> CACHE_HOLDER =
+        new ConcurrentHashMap<String, ReferenceConfigCache>();
     private final String name;
+
+    /**
+     * key的生成器，默认是{@link #DEFAULT_KEY_GENERATOR {group}/{interfaceName}:{version}}
+     */
     private final KeyGenerator generator;
 
+    /**
+     * 存储已经处理/引用完成的ReferenceConfig：<{@link #generator {group}/{interfaceName}:{version}}, {@link ReferenceConfigBase}>
+     */
     private final ConcurrentMap<String, ReferenceConfigBase<?>> referredReferences = new ConcurrentHashMap<>();
 
+    /**
+     * 存储引用完成的代理对象：<引用的接口类对象, <{@link #generator key}, 引用完成的代理对象>>
+     */
     private final ConcurrentMap<Class<?>, ConcurrentMap<String, Object>> proxies = new ConcurrentHashMap<>();
 
     private ReferenceConfigCache(String name, KeyGenerator generator) {
@@ -98,19 +118,30 @@ public class ReferenceConfigCache {
 
     @SuppressWarnings("unchecked")
     public <T> T get(ReferenceConfigBase<T> referenceConfig) {
+
+        // 生成当前reference的key，默认生成的是：{group}/{interfaceName}:{version}
         String key = generator.generateKey(referenceConfig);
         Class<?> type = referenceConfig.getInterfaceClass();
 
+        // 获取对应接口下的集合
         proxies.computeIfAbsent(type, _t -> new ConcurrentHashMap<>());
-
         ConcurrentMap<String, Object> proxiesOfType = proxies.get(type);
+
+        // 对对应的referenceConfig，生成对应的应用，并放入集合中
         proxiesOfType.computeIfAbsent(key, _k -> {
+
+            // 生成引用
             Object proxy = referenceConfig.get();
+
+            // 引用生成完成，key和referenceConfig放入集合中
             referredReferences.put(key, referenceConfig);
+
+            // 返回生成的引用
             return proxy;
         });
 
-        return (T) proxiesOfType.get(key);
+        // 获取生成完成的引用并返回
+        return (T)proxiesOfType.get(key);
     }
 
     /**

@@ -1145,21 +1145,28 @@ public class DubboBootstrap {
     }
 
     private void referServices() {
+
+        // ReferenceConfigCache初始化，存储已经引用完成的相关接口
+        // 为了避免底层连接泄漏造成性能问题，从 Dubbo 2.4.0 版本开始Dubbo提供了 ReferenceConfigCache 用于缓存 ReferenceConfig 实例
         if (cache == null) {
             cache = ReferenceConfigCache.getCache();
         }
 
+        // 循环ReferenceConfig，生成引用
         configManager.getReferences().forEach(rc -> {
+
+            // 关联DubboBootstrap
             // TODO, compatible with  ReferenceConfig.refer()
-            ReferenceConfig referenceConfig = (ReferenceConfig) rc;
+            ReferenceConfig referenceConfig = (ReferenceConfig)rc;
             referenceConfig.setBootstrap(this);
 
+            // 应该进行初始化的情况下，执行异步/同步引用
+            // 底层只是在执行rc.get()，之所以通过cache.get(rc)，是为了维护缓存
             if (rc.shouldInit()) {
                 if (referAsync) {
-                    CompletableFuture<Object> future = ScheduledCompletableFuture.submit(
-                            executorRepository.getServiceExporterExecutor(),
-                            () -> cache.get(rc)
-                    );
+                    CompletableFuture<Object> future =
+                        ScheduledCompletableFuture.submit(executorRepository.getServiceExporterExecutor(),
+                            () -> cache.get(rc));
                     asyncReferringFutures.add(future);
                 } else {
                     cache.get(rc);
