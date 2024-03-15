@@ -50,6 +50,8 @@ public class LoggerFactory {
 
     // search common-used logging frameworks
     static {
+
+        // 获取dubbo.application.logger配置，判断dubbo的日志要适配到哪个日志框架中
         String logger = System.getProperty("dubbo.application.logger", "");
 
         // 针对不同日志适配器的处理
@@ -72,6 +74,8 @@ public class LoggerFactory {
             default:
 
                 // 如果没有执行，则将所有日志适配器都尝试一遍，获取一个当前可用的日志适配器
+                // 一般来说，只要项目中有引入相关日志框架，对应的日志适配器就可用
+                // 而当前common模块，本身就引入了以上所有日志框架，所以只要不是手动exclude，到当前逻辑，使用的日志适配器就是第一个的Log4jLoggerAdapter
                 List<Class<? extends LoggerAdapter>> candidates =
                     Arrays.asList(Log4jLoggerAdapter.class, Slf4jLoggerAdapter.class, Log4j2LoggerAdapter.class,
                         JclLoggerAdapter.class, JdkLoggerAdapter.class);
